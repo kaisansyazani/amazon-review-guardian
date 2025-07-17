@@ -1,5 +1,4 @@
-
-import { serve } from 'std/server';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { cors } from '../_shared/cors.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -41,7 +40,6 @@ serve(async (req) => {
       });
     }
 
-    // Simulate fetching reviews (in real implementation, this would scrape Amazon)
     const mockReviews = [
       {
         id: '1',
@@ -85,7 +83,6 @@ serve(async (req) => {
       }
     ];
 
-    // Enhanced sentiment analysis with emotion detection
     const analyzedReviews = mockReviews.map(review => {
       // Simple classification logic
       let classification: 'genuine' | 'paid' | 'bot' | 'malicious';
@@ -166,7 +163,6 @@ serve(async (req) => {
       };
     });
 
-    // Calculate overall sentiment metrics
     const totalReviews = analyzedReviews.length;
     const avgSentiment = analyzedReviews.reduce((sum, r) => sum + r.sentimentScore, 0) / totalReviews;
     
@@ -200,7 +196,6 @@ serve(async (req) => {
       `${analyzedReviews.filter(r => r.classification === 'bot').length} potential bot reviews identified`
     ];
 
-    // Enhanced cross-marketplace price analysis
     const priceAnalysis = {
       amazonPrice: 49.99,
       lowestPrice: 39.99,
