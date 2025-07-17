@@ -18,6 +18,12 @@ export const Header = () => {
           
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
+              <a href="/">
+                <Shield className="h-4 w-4 mr-2" />
+                Authenticate
+              </a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
               <a href="/library">
                 <Library className="h-4 w-4 mr-2" />
                 Library
