@@ -348,16 +348,16 @@ serve(async (req) => {
           analyzedReviews: cached.analyzed_reviews,
           insights: cached.insights,
           productName: cached.product_name || 'Unknown Product',
-          sentimentScore: cached.sentiment_score,
-          sentimentDistribution: cached.sentiment_distribution,
-          emotionScores: cached.emotion_scores,
-          topics: cached.topics,
-          keywords: cached.keywords,
-          productAspects: cached.product_aspects,
-          summaryPositive: cached.summary_positive,
-          summaryNegative: cached.summary_negative,
-          summaryOverall: cached.summary_overall,
-          recommendation: cached.recommendation
+          sentimentScore: cached.sentiment_score || 0,
+          sentimentDistribution: cached.sentiment_distribution || { positive: 33, neutral: 34, negative: 33 },
+          emotionScores: cached.emotion_scores || {},
+          topics: cached.topics || [],
+          keywords: cached.keywords || [],
+          productAspects: cached.product_aspects || {},
+          summaryPositive: cached.summary_positive || "Analysis in progress...",
+          summaryNegative: cached.summary_negative || "Analysis in progress...",
+          summaryOverall: cached.summary_overall || "Analysis in progress...",
+          recommendation: cached.recommendation || "Analysis in progress..."
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
