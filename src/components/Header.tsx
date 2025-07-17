@@ -1,3 +1,4 @@
+
 import { Shield, Github, Info, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,7 +17,7 @@ export const Header = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <nav className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
               <a href="/">
                 <Shield className="h-4 w-4 mr-2" />
@@ -37,7 +38,7 @@ export const Header = () => {
               <Github className="h-4 w-4 mr-2" />
               GitHub
             </Button>
-          </div>
+          </nav>
         </div>
       </div>
     </header>

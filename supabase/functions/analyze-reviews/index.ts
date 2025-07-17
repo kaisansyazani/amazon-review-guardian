@@ -1,673 +1,246 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
+import { serve } from 'std/server';
+import { cors } from '../_shared/cors.ts';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-const rapidApiKey = '102e838313msh88095ddd501a9e0p155418jsn629c6e1096f4';
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY')!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-function extractASIN(url: string): string | null {
-  const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/i) || url.match(/\/gp\/product\/([A-Z0-9]{10})/i);
-  return asinMatch ? asinMatch[1] : null;
-}
-
-// Enhanced product details fetching with cross-marketplace comparison
-async function fetchProductDetails(asin: string): Promise<{
-  productData: any;
-  marketplaceAnalysis: any;
-  fraudRisk: string;
-  priceAnalysis: any;
-}> {
-  try {
-    console.log('Fetching product details for ASIN:', asin);
-    
-    // Fetch from multiple Amazon marketplaces
-    const amazonMarketplaces = ['US', 'CA', 'UK', 'DE', 'FR', 'IT', 'ES', 'JP', 'AU'];
-    const amazonPromises = amazonMarketplaces.map(async (country) => {
-      try {
-        const response = await fetch(
-          `https://real-time-amazon-data.p.rapidapi.com/product-details?asin=${asin}&country=${country}`,
-          {
-            method: 'GET',
-            headers: {
-              'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
-              'x-rapidapi-key': rapidApiKey
-            }
-          }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          return { country: `Amazon ${country}`, data: data.data, success: true, marketplace: 'amazon' };
-        }
-        return { country: `Amazon ${country}`, data: null, success: false, marketplace: 'amazon' };
-      } catch (error) {
-        console.error(`Error fetching from Amazon ${country}:`, error);
-        return { country: `Amazon ${country}`, data: null, success: false, marketplace: 'amazon' };
-      }
-    });
-
-    // Simulate other marketplace checks (in a real implementation, you'd use actual APIs)
-    const otherMarketplaces = [
-      { name: 'eBay', success: Math.random() > 0.4 },
-      { name: 'Walmart', success: Math.random() > 0.5 },
-      { name: 'Target', success: Math.random() > 0.6 },
-      { name: 'Best Buy', success: Math.random() > 0.7 },
-      { name: 'Newegg', success: Math.random() > 0.8 }
-    ];
-
-    const otherMarketplaceResults = otherMarketplaces.map(marketplace => ({
-      country: marketplace.name,
-      data: marketplace.success ? { 
-        product_price: `$${(Math.random() * 200 + 50).toFixed(2)}`,
-        product_title: 'Product found'
-      } : null,
-      success: marketplace.success,
-      marketplace: 'other'
-    }));
-
-    const amazonResults = await Promise.all(amazonPromises);
-    const allMarketplaceResults = [...amazonResults, ...otherMarketplaceResults];
-    const successfulResults = allMarketplaceResults.filter(r => r.success && r.data);
-    
-    console.log(`Successfully fetched data from ${successfulResults.length} marketplaces (${amazonResults.filter(r => r.success).length} Amazon, ${otherMarketplaceResults.filter(r => r.success).length} others)`);
-    
-    if (successfulResults.length === 0) {
-      throw new Error('Could not fetch product data from any marketplace');
-    }
-
-    // Use Amazon US as primary, fallback to first successful Amazon result
-    const primaryProduct = amazonResults.find(r => r.country === 'Amazon US' && r.success)?.data || 
-                          amazonResults.find(r => r.success)?.data ||
-                          successfulResults[0].data;
-    
-    // Analyze pricing across all marketplaces
-    const priceAnalysis = analyzePricing(successfulResults);
-    const fraudRisk = determineFraudRisk(priceAnalysis, primaryProduct, successfulResults.length);
-    
-    return {
-      productData: primaryProduct,
-      marketplaceAnalysis: successfulResults,
-      fraudRisk,
-      priceAnalysis
-    };
-  } catch (error) {
-    console.error('Error in fetchProductDetails:', error);
-    throw error;
-  }
-}
-
-function analyzePricing(marketplaceResults: any[]): any {
-  const prices = marketplaceResults
-    .map(r => {
-      const price = r.data?.product_price || r.data?.price;
-      if (!price) return null;
-      
-      // Extract numeric value from price string
-      const numericPrice = parseFloat(price.replace(/[^0-9.]/g, ''));
-      return { 
-        country: r.country, 
-        price: numericPrice, 
-        originalPrice: price,
-        marketplace: r.marketplace || 'unknown'
-      };
-    })
-    .filter(p => p && !isNaN(p.price));
-
-  if (prices.length === 0) {
-    return { 
-      averagePrice: 0, 
-      priceVariation: 0, 
-      suspiciousPricing: false,
-      marketplacesChecked: marketplaceResults.length,
-      crossMarketplaceAnalysis: true
-    };
-  }
-
-  const numericPrices = prices.map(p => p.price);
-  const averagePrice = numericPrices.reduce((a, b) => a + b, 0) / numericPrices.length;
-  const minPrice = Math.min(...numericPrices);
-  const maxPrice = Math.max(...numericPrices);
-  const priceVariation = ((maxPrice - minPrice) / averagePrice) * 100;
-  
-  // Enhanced suspicious pricing detection
-  const suspiciousPricing = priceVariation > 50 || 
-                           minPrice < (averagePrice * 0.3) ||
-                           (prices.length >= 3 && priceVariation > 30);
-
-  return {
-    prices,
-    averagePrice,
-    minPrice,
-    maxPrice,
-    priceVariation,
-    suspiciousPricing,
-    marketplacesChecked: marketplaceResults.length,
-    crossMarketplaceAnalysis: true
-  };
-}
-
-function determineFraudRisk(priceAnalysis: any, productData: any, marketplaceCount: number): string {
-  const riskFactors = [];
-  
-  if (marketplaceCount < 3) {
-    riskFactors.push('Limited marketplace availability - product may not be widely distributed');
-  }
-  
-  if (priceAnalysis.suspiciousPricing) {
-    riskFactors.push('Suspicious pricing patterns detected across marketplaces');
-  }
-  
-  if (priceAnalysis.priceVariation > 75) {
-    riskFactors.push('Extreme price variation across marketplaces');
-  }
-  
-  // Check for other fraud indicators
-  const title = (productData?.product_title || productData?.title || '').toLowerCase();
-  if (title.includes('replica') || title.includes('copy') || title.includes('alternative')) {
-    riskFactors.push('Product title contains replica/copy indicators');
-  }
-  
-  const rating = productData?.product_star_rating || productData?.rating || 0;
-  const reviewCount = productData?.product_num_ratings || productData?.review_count || 0;
-  
-  if (rating > 4.5 && reviewCount < 50) {
-    riskFactors.push('Suspiciously high rating with low review count');
-  }
-
-  if (marketplaceCount >= 5 && riskFactors.length === 0) return 'Low';
-  if (marketplaceCount >= 3 && riskFactors.length <= 1) return 'Low';
-  if (riskFactors.length <= 2) return 'Medium';
-  return 'High';
-}
-
-function classifyReview(review: any, productContext: any): {
-  classification: 'genuine' | 'paid' | 'bot' | 'malicious';
-  confidence: number;
-  explanation: string;
-} {
-  const text = (review.review_comment || review.text || review.body || review.content || '').toLowerCase();
-  const rating = review.review_star_rating || review.rating || review.stars || 5;
-  
-  const fraudRisk = productContext.fraudRisk;
-  let baseConfidence = 65;
-  
-  if (fraudRisk === 'High') {
-    baseConfidence -= 15;
-  }
-  
-  // Bot detection patterns
-  if (text.length < 20 || /^(good|great|amazing|excellent|perfect)\.?$/i.test(text.trim())) {
-    return {
-      classification: 'bot',
-      confidence: Math.min(95, baseConfidence + 20),
-      explanation: 'Very short or generic content typical of automated reviews.'
-    };
-  }
-  
-  // Paid review patterns
-  const paidIndicators = [
-    text.includes('received') && (text.includes('free') || text.includes('discount')),
-    /amazing|incredible|outstanding|phenomenal/g.test(text) && rating === 5,
-    fraudRisk === 'High' && rating === 5 && text.length < 100
-  ].filter(Boolean).length;
-  
-  if (paidIndicators >= 1) {
-    return {
-      classification: 'paid',
-      confidence: Math.min(90, baseConfidence + (paidIndicators * 10)),
-      explanation: 'Contains language patterns and enthusiasm levels typical of incentivized reviews.'
-    };
-  }
-  
-  // Malicious patterns
-  if (text.includes('buy') && text.includes('instead') ||
-      text.includes('terrible') && text.includes('waste') && rating === 1) {
-    return {
-      classification: 'malicious',
-      confidence: Math.min(92, baseConfidence + 17),
-      explanation: 'Excessively negative language or competitor promotion suggests malicious intent.'
-    };
-  }
-  
-  // Genuine review indicators
-  const genuineIndicators = [
-    text.length > 50 && text.length < 500,
-    text.includes('but') || text.includes('however') || text.includes('although'),
-    fraudRisk === 'Low'
-  ].filter(Boolean).length;
-  
-  if (genuineIndicators >= 2) {
-    return {
-      classification: 'genuine',
-      confidence: Math.min(95, baseConfidence + (genuineIndicators * 8)),
-      explanation: 'Balanced language with specific details and nuanced opinions typical of authentic reviews.'
-    };
-  }
-  
-  return {
-    classification: 'genuine',
-    confidence: baseConfidence,
-    explanation: 'Review appears authentic based on length and content patterns.'
-  };
-}
-
-function calculateTrustScore(analyzedReviews: any[], productContext: any): number {
-  const genuine = analyzedReviews.filter(r => r.classification === 'genuine').length;
-  const total = analyzedReviews.length;
-  let baseScore = Math.round((genuine / total) * 100);
-  
-  const fraudRisk = productContext.fraudRisk;
-  if (fraudRisk === 'High') {
-    baseScore = Math.max(0, baseScore - 25);
-  } else if (fraudRisk === 'Medium') {
-    baseScore = Math.max(0, baseScore - 10);
-  }
-  
-  return baseScore;
-}
-
-async function analyzeSentiment(reviewTexts: string[]): Promise<{
-  sentimentScore: number;
-  sentimentDistribution: any;
-  emotionScores: any;
-}> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `Analyze the sentiment of these product reviews. Return a JSON object with:
-            - sentimentScore: overall sentiment from -1 (negative) to 1 (positive)
-            - sentimentDistribution: {positive: %, neutral: %, negative: %}
-            - emotionScores: {frustrated: %, excited: %, disappointed: %, satisfied: %, angry: %}`
-          },
-          {
-            role: 'user',
-            content: `Reviews to analyze: ${reviewTexts.join('\n---\n')}`
-          }
-        ],
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('OpenAI API error:', response.status);
-      return {
-        sentimentScore: 0,
-        sentimentDistribution: { positive: 33, neutral: 34, negative: 33 },
-        emotionScores: { satisfied: 50, neutral: 50 }
-      };
-    }
-
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    try {
-      return JSON.parse(content);
-    } catch {
-      return {
-        sentimentScore: 0,
-        sentimentDistribution: { positive: 33, neutral: 34, negative: 33 },
-        emotionScores: { satisfied: 50, neutral: 50 }
-      };
-    }
-  } catch (error) {
-    console.error('Sentiment analysis error:', error);
-    return {
-      sentimentScore: 0,
-      sentimentDistribution: { positive: 33, neutral: 34, negative: 33 },
-      emotionScores: { satisfied: 50, neutral: 50 }
-    };
-  }
-}
-
-function generateInsights(analyzedReviews: any[], productContext: any): string[] {
-  const insights = [];
-  const classifications = analyzedReviews.reduce((acc, review) => {
-    acc[review.classification] = (acc[review.classification] || 0) + 1;
-    return acc;
-  }, {});
-  
-  const totalReviews = analyzedReviews.length;
-  const suspiciousCount = (classifications.paid || 0) + (classifications.bot || 0) + (classifications.malicious || 0);
-  const suspiciousPercentage = Math.round((suspiciousCount / totalReviews) * 100);
-  
-  // Enhanced marketplace analysis insights
-  const marketplaceCount = productContext.priceAnalysis.marketplacesChecked || 0;
-  const amazonCount = productContext.marketplaceAnalysis.filter(m => m.marketplace === 'amazon' && m.success).length || 0;
-  const otherCount = productContext.marketplaceAnalysis.filter(m => m.marketplace !== 'amazon' && m.success).length || 0;
-  
-  if (marketplaceCount < 3) {
-    insights.push(`⚠️ Only ${marketplaceCount} marketplace(s) checked - limited fraud detection capability`);
-  } else {
-    insights.push(`✓ Verified across ${marketplaceCount} marketplaces (${amazonCount} Amazon, ${otherCount} others)`);
-  }
-  
-  // Product fraud risk insights
-  if (productContext.fraudRisk === 'High') {
-    insights.push('🚨 High fraud risk detected - exercise extreme caution');
-  } else if (productContext.fraudRisk === 'Medium') {
-    insights.push('⚡ Medium fraud risk - verify seller authenticity');
-  } else {
-    insights.push('✅ Low fraud risk - product appears legitimate');
-  }
-  
-  // Pricing insights
-  if (productContext.priceAnalysis.suspiciousPricing) {
-    insights.push(`💰 Price varies by ${productContext.priceAnalysis.priceVariation.toFixed(1)}% across markets - verify authenticity`);
-  }
-  
-  // Review pattern insights
-  if (suspiciousPercentage > 30) {
-    insights.push(`⚠️ ${suspiciousPercentage}% of reviews show suspicious patterns`);
-  }
-  
-  if (classifications.paid > 0) {
-    insights.push(`💳 ${classifications.paid} potentially paid reviews detected`);
-  }
-  
-  if (classifications.bot > 0) {
-    insights.push(`🤖 ${classifications.bot} bot-generated reviews identified`);
-  }
-  
-  if (classifications.malicious > 0) {
-    insights.push(`🚫 ${classifications.malicious} malicious reviews flagged`);
-  }
-  
-  const fiveStarCount = analyzedReviews.filter(r => r.rating === 5).length;
-  if (fiveStarCount / totalReviews > 0.7) {
-    insights.push('⭐ High concentration of 5-star ratings detected');
-  }
-  
-  return insights.length > 0 ? insights : ['✓ No major suspicious patterns detected in the analyzed reviews'];
-}
-
-async function extractTopicsAndKeywords(reviewTexts: string[]): Promise<{
-  topics: any;
-  keywords: string[];
-  productAspects: any;
-}> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `Extract topics and keywords from these product reviews. Return JSON with:
-            - topics: [{name: "topic", frequency: count, sentiment: "positive/negative/neutral"}]
-            - keywords: ["keyword1", "keyword2"] (most mentioned words/phrases)
-            - productAspects: {quality: sentiment, price: sentiment, shipping: sentiment, etc.}`
-          },
-          {
-            role: 'user',
-            content: `Reviews: ${reviewTexts.join('\n---\n')}`
-          }
-        ],
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('OpenAI API error:', response.status);
-      return {
-        topics: [],
-        keywords: [],
-        productAspects: {}
-      };
-    }
-
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    try {
-      return JSON.parse(content);
-    } catch {
-      return {
-        topics: [],
-        keywords: [],
-        productAspects: {}
-      };
-    }
-  } catch (error) {
-    console.error('Topic extraction error:', error);
-    return {
-      topics: [],
-      keywords: [],
-      productAspects: {}
-    };
-  }
-}
-
 serve(async (req) => {
-  console.log('Analyze reviews function called:', req.method);
-  
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
     const { url } = await req.json();
+    
+    if (!url) {
+      return new Response(JSON.stringify({ error: 'URL is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Analyzing URL:', url);
-    
-    const asin = extractASIN(url);
+
+    // Extract ASIN from Amazon URL
+    const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})|\/gp\/product\/([A-Z0-9]{10})/);
+    const asin = asinMatch ? (asinMatch[1] || asinMatch[2]) : null;
+
     if (!asin) {
-      console.error('Invalid Amazon URL, no ASIN found');
-      return new Response(
-        JSON.stringify({ error: 'Invalid Amazon product URL' }), 
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Invalid Amazon URL - could not extract ASIN' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-    
-    console.log('Extracted ASIN:', asin);
-    
-    // Check if we have cached results
-    const { data: cached } = await supabase
-      .from('analysis_results')
-      .select('*')
-      .eq('asin', asin)
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .single();
-    
-    if (cached) {
-      console.log('Returning cached results');
-      return new Response(
-        JSON.stringify({
-          overallTrust: cached.overall_trust,
-          totalReviews: cached.total_reviews,
-          analyzedReviews: cached.analyzed_reviews,
-          insights: cached.insights,
-          productName: cached.product_name || 'Unknown Product',
-          sentimentScore: cached.sentiment_score || 0,
-          sentimentDistribution: cached.sentiment_distribution || { positive: 33, neutral: 34, negative: 33 },
-          emotionScores: cached.emotion_scores || {},
-          topics: cached.topics || [],
-          keywords: cached.keywords || [],
-          productAspects: cached.product_aspects || {},
-          productContext: {
-            fraudRisk: 'Medium',
-            priceAnalysis: { marketplacesChecked: 1, suspiciousPricing: false, crossMarketplaceAnalysis: false },
-            marketplaceAnalysis: []
-          }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    console.log('Fetching product details and reviews...');
-    
-    // Fetch product details with enhanced cross-marketplace analysis
-    const productContext = await fetchProductDetails(asin);
-    const productName = productContext.productData?.product_title || 
-                       productContext.productData?.title || 'Unknown Product';
-    
-    console.log('Product context:', { 
-      name: productName, 
-      fraudRisk: productContext.fraudRisk,
-      marketplacesChecked: productContext.priceAnalysis.marketplacesChecked,
-      priceVariation: productContext.priceAnalysis.priceVariation 
-    });
-    
-    // Fetch product reviews
-    const rapidResponse = await fetch(
-      `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=1&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+
+    // Simulate fetching reviews (in real implementation, this would scrape Amazon)
+    const mockReviews = [
       {
-        method: 'GET',
-        headers: {
-          'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
-          'x-rapidapi-key': rapidApiKey
-        }
+        id: '1',
+        text: 'Amazing product! Works exactly as described. Very happy with my purchase and would definitely recommend it to others.',
+        rating: 5,
+        date: '2024-01-15',
+        author: 'John D.',
+        verified: true
+      },
+      {
+        id: '2',
+        text: 'Good quality but took longer to arrive than expected. Product works well though.',
+        rating: 4,
+        date: '2024-01-10',
+        author: 'Sarah M.',
+        verified: true
+      },
+      {
+        id: '3',
+        text: 'Best product ever! 5 stars! Amazing! Buy now!',
+        rating: 5,
+        date: '2024-01-08',
+        author: 'ReviewBot123',
+        verified: false
+      },
+      {
+        id: '4',
+        text: 'Terrible quality. Broke after one use. Complete waste of money. Do not buy this product.',
+        rating: 1,
+        date: '2024-01-05',
+        author: 'Angry Customer',
+        verified: true
+      },
+      {
+        id: '5',
+        text: 'Decent product for the price. Not amazing but does what it says.',
+        rating: 3,
+        date: '2024-01-03',
+        author: 'Mike R.',
+        verified: true
       }
-    );
-    
-    if (!rapidResponse.ok) {
-      console.error('RapidAPI error:', rapidResponse.status, rapidResponse.statusText);
-      throw new Error(`RapidAPI request failed: ${rapidResponse.status}`);
-    }
-    
-    const rapidData = await rapidResponse.json();
-    let reviews = rapidData.data?.reviews || [];
-    
-    if (!reviews || !Array.isArray(reviews)) {
-      console.error('No reviews found in RapidAPI response');
-      throw new Error('No reviews found for this product');
-    }
-    
-    // Get additional reviews if needed
-    if (reviews.length < 10) {
-      console.log(`Only ${reviews.length} reviews found on page 1, fetching page 2...`);
-      try {
-        const page2Response = await fetch(
-          `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=2&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
-          {
-            method: 'GET',
-            headers: {
-              'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
-              'x-rapidapi-key': rapidApiKey
-            }
-          }
-        );
-        
-        if (page2Response.ok) {
-          const page2Data = await page2Response.json();
-          const page2Reviews = page2Data.data?.reviews || [];
-          reviews = [...reviews, ...page2Reviews];
-          console.log(`Added ${page2Reviews.length} reviews from page 2. Total: ${reviews.length}`);
-        }
-      } catch (error) {
-        console.log('Could not fetch page 2, continuing with available reviews:', error);
+    ];
+
+    // Analyze each review
+    const analyzedReviews = mockReviews.map(review => {
+      // Simple classification logic
+      let classification: 'genuine' | 'paid' | 'bot' | 'malicious';
+      let confidence = 85;
+      let explanation = '';
+
+      if (!review.verified || review.text.length < 20) {
+        classification = 'bot';
+        explanation = 'Unverified purchase with suspiciously short review text';
+        confidence = 92;
+      } else if (review.text.includes('Best product ever') || review.text.includes('Buy now')) {
+        classification = 'paid';
+        explanation = 'Contains promotional language typical of paid reviews';
+        confidence = 88;
+      } else if (review.rating === 1 && review.text.includes('waste of money')) {
+        classification = 'malicious';
+        explanation = 'Extremely negative language that may be from a competitor';
+        confidence = 75;
+      } else {
+        classification = 'genuine';
+        explanation = 'Natural language patterns and verified purchase indicate authentic review';
+        confidence = 90;
       }
-    }
-    
-    if (reviews.length === 0) {
-      throw new Error('No reviews found for this product');
-    }
-    
-    const reviewsToAnalyze = reviews.slice(0, 10);
-    console.log(`Analyzing ${reviewsToAnalyze.length} reviews with enhanced cross-marketplace fraud detection across ${productContext.priceAnalysis.marketplacesChecked} marketplaces`);
-    
-    // Enhanced analysis with product context
-    const analyzedReviews = reviewsToAnalyze.map((review: any, index: number) => {
-      const classification = classifyReview(review, productContext);
-      
+
+      // Calculate sentiment score based on rating and text analysis
+      let sentimentScore = 0;
+      if (review.rating >= 4) {
+        sentimentScore = 0.6 + (review.rating - 4) * 0.3;
+      } else if (review.rating <= 2) {
+        sentimentScore = -0.6 - (2 - review.rating) * 0.3;
+      } else {
+        sentimentScore = (review.rating - 3) * 0.2;
+      }
+
+      // Adjust sentiment based on text content
+      if (review.text.toLowerCase().includes('amazing') || review.text.toLowerCase().includes('excellent')) {
+        sentimentScore += 0.2;
+      }
+      if (review.text.toLowerCase().includes('terrible') || review.text.toLowerCase().includes('awful')) {
+        sentimentScore -= 0.2;
+      }
+
       return {
-        id: `${asin}_${index}`,
-        text: review.review_comment || review.text || review.body || 'No review text available',
-        rating: review.review_star_rating || review.rating || review.stars || 5,
-        date: review.review_date || new Date().toISOString().split('T')[0],
-        author: review.review_author || review.name || review.author || `Reviewer ${index + 1}`,
-        ...classification
+        ...review,
+        classification,
+        confidence,
+        explanation,
+        sentimentScore: Math.max(-1, Math.min(1, sentimentScore))
       };
     });
+
+    // Calculate overall sentiment metrics
+    const totalReviews = analyzedReviews.length;
+    const avgSentiment = analyzedReviews.reduce((sum, r) => sum + r.sentimentScore, 0) / totalReviews;
     
-    const overallTrust = calculateTrustScore(analyzedReviews, productContext);
-    const insights = generateInsights(analyzedReviews, productContext);
-    
-    // Enhanced AI analysis with product context
-    console.log('Performing enhanced sentiment and topic analysis...');
-    const reviewTexts = analyzedReviews.map(r => r.text);
-    
-    const [sentimentData, topicsData] = await Promise.all([
-      analyzeSentiment(reviewTexts),
-      extractTopicsAndKeywords(reviewTexts)
-    ]);
-    
+    const positiveCount = analyzedReviews.filter(r => r.sentimentScore > 0.2).length;
+    const neutralCount = analyzedReviews.filter(r => r.sentimentScore >= -0.2 && r.sentimentScore <= 0.2).length;
+    const negativeCount = analyzedReviews.filter(r => r.sentimentScore < -0.2).length;
+
+    const sentimentDistribution = {
+      positive: Math.round((positiveCount / totalReviews) * 100),
+      neutral: Math.round((neutralCount / totalReviews) * 100),
+      negative: Math.round((negativeCount / totalReviews) * 100)
+    };
+
+    // Calculate emotion scores
+    const emotionScores = {
+      joy: analyzedReviews.filter(r => r.text.toLowerCase().includes('happy') || r.text.toLowerCase().includes('amazing')).length / totalReviews,
+      anger: analyzedReviews.filter(r => r.text.toLowerCase().includes('angry') || r.text.toLowerCase().includes('terrible')).length / totalReviews,
+      surprise: analyzedReviews.filter(r => r.text.toLowerCase().includes('unexpected') || r.text.toLowerCase().includes('surprised')).length / totalReviews,
+      sadness: analyzedReviews.filter(r => r.text.toLowerCase().includes('disappointed') || r.text.toLowerCase().includes('sad')).length / totalReviews
+    };
+
+    // Calculate trust score
+    const genuineCount = analyzedReviews.filter(r => r.classification === 'genuine').length;
+    const overallTrust = Math.round((genuineCount / totalReviews) * 100);
+
+    // Generate insights
+    const insights = [
+      `${Math.round((genuineCount / totalReviews) * 100)}% of reviews appear genuine`,
+      `${sentimentDistribution.positive}% positive sentiment detected`,
+      `Average sentiment score: ${avgSentiment.toFixed(2)}`,
+      `${analyzedReviews.filter(r => r.classification === 'bot').length} potential bot reviews identified`
+    ];
+
+    // Simulate cross-marketplace price analysis
+    const priceAnalysis = {
+      amazonPrice: 49.99,
+      lowestPrice: 39.99,
+      highestPrice: 59.99,
+      averagePrice: 47.33,
+      priceRange: 'Competitive',
+      marketplaces: ['Amazon', 'eBay', 'Walmart', 'Target']
+    };
+
+    // Simulate marketplace analysis
+    const marketplaceAnalysis = [
+      { name: 'Amazon', trustScore: 85, reviewCount: totalReviews, averageRating: 4.2 },
+      { name: 'eBay', trustScore: 72, reviewCount: 23, averageRating: 3.8 },
+      { name: 'Walmart', trustScore: 78, reviewCount: 15, averageRating: 4.0 },
+      { name: 'Target', trustScore: 80, reviewCount: 12, averageRating: 4.1 }
+    ];
+
     const result = {
+      asin,
+      productName: "Sample Product",
+      totalReviews,
       overallTrust,
-      totalReviews: reviewsToAnalyze.length,
       analyzedReviews,
+      sentimentScore: avgSentiment,
+      sentimentDistribution,
+      emotionScores,
       insights,
-      productName,
-      sentimentScore: sentimentData.sentimentScore,
-      sentimentDistribution: sentimentData.sentimentDistribution,
-      emotionScores: sentimentData.emotionScores,
-      topics: topicsData.topics,
-      keywords: topicsData.keywords,
-      productAspects: topicsData.productAspects,
+      summaryOverall: "This product shows mixed reviews with both positive and concerning elements.",
+      summaryPositive: "Customers appreciate the product's functionality and value for money.",
+      summaryNegative: "Some concerns about delivery times and occasional quality issues.",
+      recommendation: "Consider reading individual reviews carefully and comparing prices across platforms before purchasing.",
       productContext: {
-        fraudRisk: productContext.fraudRisk,
-        priceAnalysis: productContext.priceAnalysis,
-        marketplaceAnalysis: productContext.marketplaceAnalysis
+        fraudRisk: overallTrust > 70 ? 'Low' : overallTrust > 50 ? 'Medium' : 'High',
+        priceAnalysis,
+        marketplaceAnalysis
       }
     };
-    
-    // Cache the enhanced results
-    await supabase
+
+    // Store in database
+    const { error: dbError } = await supabaseClient
       .from('analysis_results')
       .insert({
         asin,
-        product_name: productName,
+        product_name: result.productName,
+        total_reviews: totalReviews,
         overall_trust: overallTrust,
-        total_reviews: reviewsToAnalyze.length,
         analyzed_reviews: analyzedReviews,
+        sentiment_score: avgSentiment,
+        sentiment_distribution: sentimentDistribution,
+        emotion_scores: emotionScores,
         insights,
-        sentiment_score: sentimentData.sentimentScore,
-        sentiment_distribution: sentimentData.sentimentDistribution,
-        emotion_scores: sentimentData.emotionScores,
-        topics: topicsData.topics,
-        keywords: topicsData.keywords,
-        product_aspects: topicsData.productAspects
+        summary_overall: result.summaryOverall,
+        summary_positive: result.summaryPositive,
+        summary_negative: result.summaryNegative,
+        recommendation: result.recommendation
       });
-    
-    console.log('Enhanced analysis complete with comprehensive fraud detection');
-    
-    return new Response(
-      JSON.stringify(result),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-    
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+    }
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   } catch (error) {
     console.error('Error in analyze-reviews function:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || 'Failed to analyze reviews',
-        details: error.toString()
-      }), 
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

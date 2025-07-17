@@ -5,6 +5,7 @@ import { ReviewCard } from "@/components/ReviewCard";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { SentimentAnalysis } from "@/components/SentimentAnalysis";
 import { FraudAnalysis } from "@/components/FraudAnalysis";
+import { AISummary } from "@/components/AISummary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,14 +43,14 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Review Classification Summary</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 rounded-lg bg-success/10 border border-success/20">
                       <div className="text-2xl font-bold text-success">{genuineCount}</div>
                       <div className="text-sm text-muted-foreground">Genuine</div>
@@ -69,9 +70,17 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
                   </div>
                 </CardContent>
               </Card>
-            </div>
-            <div>
+
               <InsightsPanel insights={results.insights} />
+            </div>
+
+            <div>
+              <AISummary 
+                summaryOverall={results.summaryOverall}
+                summaryPositive={results.summaryPositive}
+                summaryNegative={results.summaryNegative}
+                recommendation={results.recommendation}
+              />
             </div>
           </div>
         </TabsContent>
