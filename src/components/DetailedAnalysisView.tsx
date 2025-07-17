@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,10 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { TrustScore } from "@/components/TrustScore";
 import { ReviewCard } from "@/components/ReviewCard";
 import { SentimentAnalysis } from "@/components/SentimentAnalysis";
-import { AISummaries } from "@/components/AISummaries";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { Review } from "@/pages/Index";
+import { Review } from "@/types/review";
 import { Tables } from "@/integrations/supabase/types";
 
 // Use the same type transformation as in Library.tsx
@@ -138,12 +136,6 @@ export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewPro
             </div>
           </div>
           
-          <AISummaries 
-            summaryPositive={result.summary_positive}
-            summaryNegative={result.summary_negative}
-            summaryOverall={result.summary_overall}
-            recommendation={result.recommendation}
-          />
         </TabsContent>
 
         <TabsContent value="sentiment" className="space-y-6">

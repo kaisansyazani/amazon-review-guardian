@@ -1,4 +1,4 @@
-import { Review } from "@/pages/Index";
+import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle } from "lucide-react";
