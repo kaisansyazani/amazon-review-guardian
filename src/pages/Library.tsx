@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrustScore } from "@/components/TrustScore";
+import { Header } from "@/components/Header";
 import { Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,6 +61,7 @@ export default function Library() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
+      <Header />
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4">Authentication Library</h1>

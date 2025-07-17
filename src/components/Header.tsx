@@ -7,12 +7,8 @@ export const Header = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden">
-              <img 
-                src="/lovable-uploads/e7d5c0d4-321a-4cfc-91ff-8e760e8d3944.png" 
-                alt="ReviewGuard Logo" 
-                className="w-full h-full object-cover"
-              />
+            <div className="p-2 bg-gradient-primary rounded-lg">
+              <Shield className="h-6 w-6 text-white" />
             </div>
             <div>
               <a href="/" className="text-xl font-bold hover:text-primary transition-colors">ReviewGuard</a>
