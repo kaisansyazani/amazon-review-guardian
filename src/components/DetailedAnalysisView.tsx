@@ -29,6 +29,29 @@ export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewPro
     return `https://www.amazon.com/dp/${asin}`;
   };
 
+  // Helper functions to safely cast Json types
+  const getSentimentDistribution = (data: any) => {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      return {
+        positive: Number(data.positive) || 0,
+        neutral: Number(data.neutral) || 0,
+        negative: Number(data.negative) || 0
+      };
+    }
+    return { positive: 0, neutral: 0, negative: 0 };
+  };
+
+  const getEmotionScores = (data: any) => {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const scores: { [key: string]: number } = {};
+      Object.keys(data).forEach(key => {
+        scores[key] = Number(data[key]) || 0;
+      });
+      return scores;
+    }
+    return {};
+  };
+
   const genuineCount = result.analyzed_reviews.filter(r => r.classification === 'genuine').length;
   const paidCount = result.analyzed_reviews.filter(r => r.classification === 'paid').length;
   const botCount = result.analyzed_reviews.filter(r => r.classification === 'bot').length;
@@ -125,9 +148,9 @@ export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewPro
 
         <TabsContent value="sentiment" className="space-y-6">
           <SentimentAnalysis 
-            sentimentScore={result.sentiment_score} 
-            sentimentDistribution={result.sentiment_distribution}
-            emotionScores={result.emotion_scores}
+            sentimentScore={result.sentiment_score || 0} 
+            sentimentDistribution={getSentimentDistribution(result.sentiment_distribution)}
+            emotionScores={getEmotionScores(result.emotion_scores)}
           />
         </TabsContent>
 
