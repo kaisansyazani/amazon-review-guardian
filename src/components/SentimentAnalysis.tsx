@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { TrendingUp, Smile, Frown, Meh } from "lucide-react";
@@ -32,6 +31,12 @@ export const SentimentAnalysis = ({
     return <Meh className="h-6 w-6 text-yellow-600" />;
   };
 
+  const getSentimentLabel = (score: number) => {
+    if (score > 0.3) return "Positive";
+    if (score < -0.3) return "Negative";
+    return "Neutral";
+  };
+
   const pieData = [
     { name: 'Positive', value: sentimentDistribution?.positive || 0, color: '#22c55e' },
     { name: 'Neutral', value: sentimentDistribution?.neutral || 0, color: '#eab308' },
@@ -63,7 +68,7 @@ export const SentimentAnalysis = ({
               </div>
               <p className="text-sm text-muted-foreground">Overall Sentiment</p>
               <p className={`text-2xl font-bold ${getSentimentColor(sentimentScore || 0)}`}>
-                {isValidSentimentScore ? (sentimentScore > 0 ? '+' : '') + sentimentScore.toFixed(2) : 'N/A'}
+                {isValidSentimentScore ? getSentimentLabel(sentimentScore) : 'N/A'}
               </p>
             </div>
             
