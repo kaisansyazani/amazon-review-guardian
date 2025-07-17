@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { UrlInput } from "@/components/UrlInput";
 import { AnalysisProgress } from "@/components/AnalysisProgress";
@@ -32,6 +33,17 @@ export interface AnalysisResult {
   summaryNegative?: string;
   summaryOverall?: string;
   recommendation?: string;
+  fraudAnalysis?: string;
+  productContext?: {
+    fraudRisk: 'Low' | 'Medium' | 'High';
+    priceAnalysis: {
+      prices?: Array<{ country: string; price: number; originalPrice: string }>;
+      averagePrice: number;
+      priceVariation: number;
+      suspiciousPricing: boolean;
+    };
+    marketplaceAnalysis: Array<{ country: string; data: any; success: boolean }>;
+  };
 }
 
 export interface Review {
@@ -56,16 +68,18 @@ const Index = () => {
     setProgress(0);
     setResults(null);
 
-    // Real analysis steps
+    // Enhanced analysis steps
     const steps = [
       "Extracting product information...",
+      "Fetching product details from multiple marketplaces...",
+      "Analyzing pricing patterns for fraud detection...",
       "Fetching reviews from Amazon...",
       "Analyzing linguistic patterns...",
       "Detecting bot-generated content...",
       "Identifying paid reviews...",
       "Flagging malicious posts...",
-      "Calculating trust scores...",
-      "Generating insights..."
+      "Calculating trust scores with fraud context...",
+      "Generating enhanced insights..."
     ];
 
     try {
@@ -79,7 +93,7 @@ const Index = () => {
       setCurrentStep(steps[steps.length - 1]);
       setProgress(95);
 
-      // Call the edge function for real analysis
+      // Call the enhanced edge function
       const { data, error } = await supabase.functions.invoke('analyze-reviews', {
         body: { url }
       });
@@ -93,7 +107,7 @@ const Index = () => {
       setResults(data);
     } catch (error) {
       console.error('Analysis failed:', error);
-      // Fallback to mock data if API fails
+      // Enhanced fallback data with fraud analysis
       const mockResults: AnalysisResult = {
         overallTrust: 72,
         totalReviews: 247,
@@ -130,9 +144,23 @@ const Index = () => {
           }
         ],
         insights: [
-          "API temporarily unavailable - showing sample data",
+          "API temporarily unavailable - showing sample data with fraud analysis",
+          "Enhanced fraud detection and pricing analysis active",
           "Please try again later for real analysis"
-        ]
+        ],
+        fraudAnalysis: "Sample fraud analysis: Moderate risk detected based on pricing patterns.",
+        productContext: {
+          fraudRisk: 'Medium',
+          priceAnalysis: {
+            averagePrice: 29.99,
+            priceVariation: 45.2,
+            suspiciousPricing: true
+          },
+          marketplaceAnalysis: [
+            { country: 'US', data: {}, success: true },
+            { country: 'CA', data: {}, success: true }
+          ]
+        }
       };
       setResults(mockResults);
     }
@@ -157,7 +185,7 @@ const Index = () => {
               Amazon Review Authenticator
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Detect fake, paid, and malicious reviews with AI-powered analysis. Simply paste an Amazon product link to get started.
+              Detect fake, paid, and malicious reviews with AI-powered analysis. Enhanced with fraud detection and marketplace pricing comparison.
             </p>
           </div>
 

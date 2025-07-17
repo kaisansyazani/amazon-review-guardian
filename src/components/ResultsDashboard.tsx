@@ -5,6 +5,7 @@ import { ReviewCard } from "@/components/ReviewCard";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { SentimentAnalysis } from "@/components/SentimentAnalysis";
 import { AISummaries } from "@/components/AISummaries";
+import { FraudAnalysis } from "@/components/FraudAnalysis";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,8 +35,9 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
       <TrustScore score={results.overallTrust} totalReviews={results.totalReviews} />
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="fraud">Fraud Analysis</TabsTrigger>
           <TabsTrigger value="sentiment">Sentiment</TabsTrigger>
           <TabsTrigger value="summaries">AI Summary</TabsTrigger>
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
@@ -75,13 +77,29 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
             </div>
           </div>
           
-          {/* AI Summary in Overview */}
           <AISummaries 
             summaryPositive={results.summaryPositive}
             summaryNegative={results.summaryNegative}
             summaryOverall={results.summaryOverall}
             recommendation={results.recommendation}
           />
+        </TabsContent>
+
+        <TabsContent value="fraud" className="space-y-6">
+          {results.productContext ? (
+            <FraudAnalysis 
+              fraudRisk={results.productContext.fraudRisk}
+              priceAnalysis={results.productContext.priceAnalysis}
+              marketplaceAnalysis={results.productContext.marketplaceAnalysis}
+              fraudAnalysis={results.fraudAnalysis}
+            />
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-muted-foreground">Fraud analysis data not available</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="sentiment" className="space-y-6">

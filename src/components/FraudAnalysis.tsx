@@ -1,0 +1,119 @@
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, Shield, DollarSign, Globe } from "lucide-react";
+
+interface FraudAnalysisProps {
+  fraudRisk: 'Low' | 'Medium' | 'High';
+  priceAnalysis: {
+    prices?: Array<{ country: string; price: number; originalPrice: string }>;
+    averagePrice: number;
+    priceVariation: number;
+    suspiciousPricing: boolean;
+  };
+  marketplaceAnalysis: Array<{ country: string; data: any; success: boolean }>;
+  fraudAnalysis?: string;
+}
+
+export const FraudAnalysis = ({ 
+  fraudRisk, 
+  priceAnalysis, 
+  marketplaceAnalysis, 
+  fraudAnalysis 
+}: FraudAnalysisProps) => {
+  const getRiskColor = (risk: string) => {
+    switch (risk) {
+      case 'Low': return 'text-green-600 bg-green-50 border-green-200';
+      case 'Medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'High': return 'text-red-600 bg-red-50 border-red-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getRiskIcon = (risk: string) => {
+    switch (risk) {
+      case 'Low': return <Shield className="h-5 w-5" />;
+      case 'Medium': return <AlertTriangle className="h-5 w-5" />;
+      case 'High': return <AlertTriangle className="h-5 w-5" />;
+      default: return <Shield className="h-5 w-5" />;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            Fraud Risk Assessment
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${getRiskColor(fraudRisk)}`}>
+              {getRiskIcon(fraudRisk)}
+              <span className="font-semibold">{fraudRisk} Risk</span>
+            </div>
+          </div>
+          
+          {fraudAnalysis && (
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <p className="text-sm leading-relaxed">{fraudAnalysis}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Pricing Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 rounded-lg bg-muted/30">
+              <div className="text-lg font-bold">${priceAnalysis.averagePrice?.toFixed(2) || 'N/A'}</div>
+              <div className="text-xs text-muted-foreground">Average Price</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/30">
+              <div className="text-lg font-bold">{priceAnalysis.priceVariation?.toFixed(1) || 0}%</div>
+              <div className="text-xs text-muted-foreground">Price Variation</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/30">
+              <div className="text-lg font-bold">{marketplaceAnalysis?.length || 0}</div>
+              <div className="text-xs text-muted-foreground">Markets Checked</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/30">
+              <Badge variant={priceAnalysis.suspiciousPricing ? "destructive" : "secondary"}>
+                {priceAnalysis.suspiciousPricing ? "Suspicious" : "Normal"}
+              </Badge>
+              <div className="text-xs text-muted-foreground mt-1">Pricing Pattern</div>
+            </div>
+          </div>
+
+          {priceAnalysis.prices && priceAnalysis.prices.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Price by Marketplace:</h4>
+              <div className="space-y-2">
+                {priceAnalysis.prices.map((price, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 rounded border">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{price.country}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
