@@ -28,6 +28,13 @@ serve(async (req) => {
       });
     }
 
+    if (!rapidApiKey) {
+      return new Response(JSON.stringify({ error: 'RapidAPI key not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Analyzing URL:', url);
 
     // Extract ASIN from Amazon URL
@@ -46,196 +53,162 @@ serve(async (req) => {
     // Fetch real reviews from RapidAPI
     let realReviews = [];
     let productName = "Amazon Product";
+    let totalPages = 1;
     
-    try {
-      const reviewsResponse = await fetch(
-        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=1&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
-        {
-          method: 'GET',
-          headers: {
-            'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
-            'x-rapidapi-key': rapidApiKey,
-          },
-        }
-      );
-
-      if (!reviewsResponse.ok) {
-        throw new Error(`API request failed: ${reviewsResponse.status}`);
-      }
-
-      const reviewsData = await reviewsResponse.json();
-      console.log('Reviews API response:', reviewsData);
-
-      if (reviewsData.data && reviewsData.data.reviews) {
-        realReviews = reviewsData.data.reviews.slice(0, 15).map((review: any, index: number) => ({
-          id: String(index + 1),
-          text: review.review_comment || review.review_text || 'No review text available',
-          rating: review.review_star_rating || review.rating || 5,
-          date: review.review_date || new Date().toISOString().split('T')[0],
-          author: review.review_author || review.reviewer_name || 'Anonymous',
-          verified: review.is_verified_purchase !== false
-        }));
+    // Try to fetch from multiple pages to get at least 10 reviews
+    for (let page = 1; page <= 3 && realReviews.length < 10; page++) {
+      try {
+        console.log(`Fetching page ${page} of reviews for ASIN: ${asin}`);
         
-        productName = reviewsData.data.product_title || reviewsData.data.product_name || "Amazon Product";
+        const reviewsResponse = await fetch(
+          `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+          {
+            method: 'GET',
+            headers: {
+              'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+              'x-rapidapi-key': rapidApiKey,
+            },
+          }
+        );
+
+        if (!reviewsResponse.ok) {
+          console.error(`API request failed for page ${page}: ${reviewsResponse.status} - ${reviewsResponse.statusText}`);
+          continue;
+        }
+
+        const reviewsData = await reviewsResponse.json();
+        console.log(`Page ${page} API response:`, JSON.stringify(reviewsData, null, 2));
+
+        if (reviewsData.data && reviewsData.data.reviews) {
+          const pageReviews = reviewsData.data.reviews.map((review: any, index: number) => ({
+            id: `${page}-${index + 1}`,
+            text: review.review_comment || review.review_text || review.review_body || 'No review text available',
+            rating: review.review_star_rating || review.rating || review.stars || 5,
+            date: review.review_date || review.date || new Date().toISOString().split('T')[0],
+            author: review.review_author || review.reviewer_name || review.author || 'Anonymous',
+            verified: review.is_verified_purchase !== false
+          }));
+          
+          realReviews.push(...pageReviews);
+          
+          // Set product name from first successful response
+          if (page === 1 && reviewsData.data.product_title) {
+            productName = reviewsData.data.product_title || reviewsData.data.product_name || "Amazon Product";
+          }
+        }
+      } catch (pageError) {
+        console.error(`Error fetching page ${page}:`, pageError);
+        continue;
       }
-    } catch (apiError) {
-      console.error('Error fetching real reviews:', apiError);
-      console.log('Falling back to sample data due to API error');
     }
 
-    // If API fails or returns no reviews, use sample data for demonstration
     if (realReviews.length === 0) {
-      realReviews = [
-        {
-          id: '1',
-          text: 'Amazing product! Works exactly as described. Very happy with my purchase and would definitely recommend it to others.',
-          rating: 5,
-          date: '2024-01-15',
-          author: 'John D.',
-          verified: true
-        },
-        {
-          id: '2',
-          text: 'Good quality but took longer to arrive than expected. Product works well though.',
-          rating: 4,
-          date: '2024-01-10',
-          author: 'Sarah M.',
-          verified: true
-        },
-        {
-          id: '3',
-          text: 'Best product ever! 5 stars! Amazing! Buy now!',
-          rating: 5,
-          date: '2024-01-08',
-          author: 'ReviewBot123',
-          verified: false
-        },
-        {
-          id: '4',
-          text: 'Terrible quality. Broke after one use. Complete waste of money. Do not buy this product.',
-          rating: 1,
-          date: '2024-01-05',
-          author: 'Angry Customer',
-          verified: true
-        },
-        {
-          id: '5',
-          text: 'Decent product for the price. Not amazing but does what it says.',
-          rating: 3,
-          date: '2024-01-03',
-          author: 'Mike R.',
-          verified: true
-        },
-        {
-          id: '6',
-          text: 'Outstanding quality and fast shipping. Exceeded my expectations completely!',
-          rating: 5,
-          date: '2024-01-20',
-          author: 'Lisa K.',
-          verified: true
-        },
-        {
-          id: '7',
-          text: 'Product is okay, nothing special. Works as advertised but could be better.',
-          rating: 3,
-          date: '2024-01-18',
-          author: 'Tom H.',
-          verified: true
-        },
-        {
-          id: '8',
-          text: 'Worst purchase ever! Product arrived damaged and customer service was unhelpful.',
-          rating: 1,
-          date: '2024-01-16',
-          author: 'DisappointedBuyer',
-          verified: true
-        },
-        {
-          id: '9',
-          text: 'Great value for money. Highly recommended for anyone looking for this type of product.',
-          rating: 4,
-          date: '2024-01-14',
-          author: 'Jennifer L.',
-          verified: true
-        },
-        {
-          id: '10',
-          text: 'Perfect! Exactly what I needed. Fast delivery and excellent packaging.',
-          rating: 5,
-          date: '2024-01-12',
-          author: 'David P.',
-          verified: true
-        }
-      ];
+      return new Response(JSON.stringify({ 
+        error: 'Unable to fetch reviews from Amazon API. Please check the product URL and try again.' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    // Limit to first 15 reviews for processing
+    realReviews = realReviews.slice(0, 15);
+    
+    console.log(`Successfully fetched ${realReviews.length} real reviews`);
 
     const analyzedReviews = realReviews.map(review => {
-      // Simple classification logic
+      // Enhanced classification logic based on real review patterns
       let classification: 'genuine' | 'paid' | 'bot' | 'malicious';
       let confidence = 85;
       let explanation = '';
 
-      if (!review.verified || review.text.length < 20) {
+      const text = review.text.toLowerCase();
+      const textLength = review.text.length;
+
+      // Bot detection - very short reviews, unverified, repetitive language
+      if (!review.verified && textLength < 30) {
         classification = 'bot';
         explanation = 'Unverified purchase with suspiciously short review text';
         confidence = 92;
-      } else if (review.text.includes('Best product ever') || review.text.includes('Buy now') || review.text.includes('Buy multiple')) {
+      } 
+      // Paid review detection - promotional language, excessive enthusiasm
+      else if (
+        text.includes('best product ever') || 
+        text.includes('buy now') || 
+        text.includes('highly recommend') && text.includes('amazing') ||
+        text.includes('perfect product') ||
+        (review.rating === 5 && textLength < 50)
+      ) {
         classification = 'paid';
-        explanation = 'Contains promotional language typical of paid reviews';
+        explanation = 'Contains promotional language or patterns typical of incentivized reviews';
         confidence = 88;
-      } else if (review.rating === 1 && review.text.includes('waste of money')) {
+      }
+      // Malicious review detection - extremely negative, competitor-like language
+      else if (
+        review.rating === 1 && 
+        (text.includes('waste of money') || text.includes('scam') || text.includes('fake'))
+      ) {
         classification = 'malicious';
-        explanation = 'Extremely negative language that may be from a competitor';
+        explanation = 'Extremely negative language that may indicate competitor interference';
         confidence = 75;
-      } else {
+      }
+      // Genuine review - natural language, balanced content, verified purchase
+      else {
         classification = 'genuine';
-        explanation = 'Natural language patterns and verified purchase indicate authentic review';
+        explanation = 'Natural language patterns and purchase verification indicate authentic review';
         confidence = 90;
       }
 
-      // Calculate sentiment score based on rating and text analysis
+      // Enhanced sentiment analysis
       let sentimentScore = 0;
-      if (review.rating >= 4) {
-        sentimentScore = 0.6 + (review.rating - 4) * 0.3;
-      } else if (review.rating <= 2) {
-        sentimentScore = -0.6 - (2 - review.rating) * 0.3;
+      const rating = review.rating;
+      
+      // Base sentiment from rating
+      if (rating >= 4) {
+        sentimentScore = 0.6 + (rating - 4) * 0.4;
+      } else if (rating <= 2) {
+        sentimentScore = -0.6 - (2 - rating) * 0.4;
       } else {
-        sentimentScore = (review.rating - 3) * 0.2;
+        sentimentScore = (rating - 3) * 0.3;
       }
 
-      // Enhanced sentiment analysis with keyword detection
-      const text = review.text.toLowerCase();
-      const positiveWords = ['amazing', 'excellent', 'great', 'perfect', 'love', 'fantastic', 'wonderful', 'outstanding', 'superb'];
-      const negativeWords = ['terrible', 'awful', 'horrible', 'worst', 'hate', 'disappointing', 'useless', 'broken', 'waste'];
-      const neutralWords = ['okay', 'decent', 'average', 'fine', 'acceptable'];
+      // Keyword-based sentiment adjustment
+      const positiveWords = ['amazing', 'excellent', 'great', 'perfect', 'love', 'fantastic', 'wonderful', 'outstanding', 'superb', 'brilliant'];
+      const negativeWords = ['terrible', 'awful', 'horrible', 'worst', 'hate', 'disappointing', 'useless', 'broken', 'waste', 'defective'];
+      const neutralWords = ['okay', 'decent', 'average', 'fine', 'acceptable', 'adequate'];
 
-      let sentiment: string;
-      let adjustedScore = sentimentScore;
-
-      // Adjust sentiment based on keywords
       positiveWords.forEach(word => {
-        if (text.includes(word)) adjustedScore += 0.15;
+        if (text.includes(word)) sentimentScore += 0.1;
       });
       negativeWords.forEach(word => {
-        if (text.includes(word)) adjustedScore -= 0.15;
+        if (text.includes(word)) sentimentScore -= 0.1;
       });
       neutralWords.forEach(word => {
-        if (text.includes(word)) adjustedScore *= 0.7;
+        if (text.includes(word)) sentimentScore *= 0.8;
       });
 
-      // Clamp score and determine sentiment
-      adjustedScore = Math.max(-1, Math.min(1, adjustedScore));
+      // Clamp sentiment score
+      sentimentScore = Math.max(-1, Math.min(1, sentimentScore));
       
-      if (adjustedScore > 0.2) sentiment = 'positive';
-      else if (adjustedScore < -0.2) sentiment = 'negative';
+      let sentiment: string;
+      if (sentimentScore > 0.2) sentiment = 'positive';
+      else if (sentimentScore < -0.2) sentiment = 'negative';
       else sentiment = 'neutral';
 
-      // Calculate emotion scores for this review
+      // Calculate emotion scores
       const emotionScores = {
-        joy: text.includes('happy') || text.includes('amazing') || text.includes('love') || text.includes('outstanding') || text.includes('perfect') ? 0.8 : 0.1,
-        anger: text.includes('angry') || text.includes('terrible') || text.includes('awful') || text.includes('worst') ? 0.8 : 0.1,
-        surprise: text.includes('unexpected') || text.includes('surprised') || text.includes('wow') || text.includes('exceeded') ? 0.6 : 0.1,
-        sadness: text.includes('disappointed') || text.includes('sad') || text.includes('waste') || text.includes('unhelpful') ? 0.7 : 0.1
+        joy: Math.max(0.1, Math.min(0.9, 
+          (text.includes('happy') || text.includes('love') || text.includes('amazing') || text.includes('perfect')) ? 0.8 : 0.2
+        )),
+        anger: Math.max(0.1, Math.min(0.9,
+          (text.includes('angry') || text.includes('terrible') || text.includes('hate') || text.includes('awful')) ? 0.8 : 0.2
+        )),
+        surprise: Math.max(0.1, Math.min(0.9,
+          (text.includes('unexpected') || text.includes('surprised') || text.includes('wow') || text.includes('exceeded')) ? 0.7 : 0.2
+        )),
+        sadness: Math.max(0.1, Math.min(0.9,
+          (text.includes('disappointed') || text.includes('sad') || text.includes('waste') || text.includes('broken')) ? 0.7 : 0.2
+        ))
       };
 
       return {
@@ -243,7 +216,7 @@ serve(async (req) => {
         classification,
         confidence,
         explanation,
-        sentimentScore: adjustedScore,
+        sentimentScore,
         sentiment,
         emotionScores
       };
@@ -270,66 +243,50 @@ serve(async (req) => {
       sadness: analyzedReviews.reduce((sum, r) => sum + r.emotionScores.sadness, 0) / totalReviews
     };
 
-    // Calculate trust score
+    // Calculate trust score based on genuine reviews
     const genuineCount = analyzedReviews.filter(r => r.classification === 'genuine').length;
     const overallTrust = Math.round((genuineCount / totalReviews) * 100);
 
-    // Generate insights
+    // Generate real insights
+    const botCount = analyzedReviews.filter(r => r.classification === 'bot').length;
+    const paidCount = analyzedReviews.filter(r => r.classification === 'paid').length;
+    const maliciousCount = analyzedReviews.filter(r => r.classification === 'malicious').length;
+    
     const insights = [
       `${Math.round((genuineCount / totalReviews) * 100)}% of reviews appear genuine`,
       `${sentimentDistribution.positive}% positive sentiment detected`,
       `Average sentiment score: ${avgSentiment.toFixed(2)}`,
-      `${analyzedReviews.filter(r => r.classification === 'bot').length} potential bot reviews identified`
+      `${botCount} potential bot reviews identified`,
+      `${paidCount} likely paid reviews detected`,
+      `${maliciousCount} potentially malicious reviews found`
     ];
 
+    // Real price analysis would require additional API calls
     const priceAnalysis = {
-      amazonPrice: 49.99,
-      lowestPrice: 39.99,
-      highestPrice: 59.99,
-      averagePrice: 47.33,
-      priceRange: 'Competitive',
-      marketplaces: ['Amazon', 'eBay', 'Walmart', 'Target', 'Best Buy', 'Newegg'],
+      amazonPrice: 0, // Would need product price API
+      lowestPrice: 0,
+      highestPrice: 0,
+      averagePrice: 0,
+      priceRange: 'Unknown',
+      marketplaces: ['Amazon'],
       prices: [
-        { country: 'US', price: 49.99, originalPrice: '$49.99' },
-        { country: 'UK', price: 42.50, originalPrice: '£35.99' },
-        { country: 'CA', price: 65.99, originalPrice: 'C$65.99' },
-        { country: 'DE', price: 47.99, originalPrice: '€44.99' }
+        { country: 'US', price: 0, originalPrice: 'Price not available' }
       ],
-      priceVariation: 15.2,
+      priceVariation: 0,
       suspiciousPricing: false,
-      marketplacesChecked: 6
+      marketplacesChecked: 1
     };
 
-    // Enhanced marketplace analysis with cross-platform data
+    // Simplified marketplace analysis
     const marketplaceAnalysis = [
       { 
         country: 'US',
-        data: { name: 'Amazon', trustScore: 85, reviewCount: totalReviews, averageRating: 4.2 },
-        success: true
-      },
-      { 
-        country: 'US',
-        data: { name: 'eBay', trustScore: 72, reviewCount: 23, averageRating: 3.8 },
-        success: true
-      },
-      { 
-        country: 'US',
-        data: { name: 'Walmart', trustScore: 78, reviewCount: 15, averageRating: 4.0 },
-        success: true
-      },
-      { 
-        country: 'US',
-        data: { name: 'Target', trustScore: 80, reviewCount: 12, averageRating: 4.1 },
-        success: true
-      },
-      { 
-        country: 'US',
-        data: { name: 'Best Buy', trustScore: 83, reviewCount: 8, averageRating: 4.3 },
-        success: true
-      },
-      { 
-        country: 'US',
-        data: { name: 'Newegg', trustScore: 76, reviewCount: 6, averageRating: 3.9 },
+        data: { 
+          name: 'Amazon', 
+          trustScore: overallTrust, 
+          reviewCount: totalReviews, 
+          averageRating: analyzedReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
+        },
         success: true
       }
     ];
@@ -344,13 +301,15 @@ serve(async (req) => {
       sentimentDistribution,
       emotionScores,
       insights,
-      topics: [],
-      keywords: [],
-      productAspects: {},
-      summaryOverall: "This product shows mixed reviews with both positive and concerning elements. The sentiment analysis reveals varied customer experiences.",
-      summaryPositive: "Customers appreciate the product's functionality and value for money. Many users report satisfaction with performance.",
-      summaryNegative: "Some concerns about delivery times and occasional quality issues. A few users experienced durability problems.",
-      recommendation: "Consider reading individual reviews carefully and comparing prices across platforms before purchasing. Overall trustworthy but monitor for quality consistency.",
+      topics: [], // Would require NLP processing
+      keywords: [], // Would require NLP processing
+      productAspects: {}, // Would require aspect extraction
+      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews shows ${overallTrust}% appear genuine. ${sentimentDistribution.positive}% express positive sentiment.`,
+      summaryPositive: positiveCount > 0 ? "Customers appreciate product quality and performance based on verified reviews." : "Limited positive feedback detected.",
+      summaryNegative: negativeCount > 0 ? "Some customers report issues with quality or expectations not being met." : "Few negative concerns identified.",
+      recommendation: overallTrust > 70 ? 
+        "Product appears to have genuine positive reviews. Consider individual review details before purchasing." :
+        "Exercise caution - significant suspicious review activity detected. Read individual reviews carefully.",
       productContext: {
         fraudRisk: overallTrust > 70 ? 'Low' : overallTrust > 50 ? 'Medium' : 'High',
         priceAnalysis,
