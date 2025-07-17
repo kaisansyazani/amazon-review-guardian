@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -528,7 +527,7 @@ async function fetchReviews(asin: string) {
       console.log(`Fetching page ${page} of reviews for ASIN: ${asin}`);
       
       const reviewsResponse = await fetch(
-        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=MOST_RECENT&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
         {
           method: 'GET',
           headers: {
