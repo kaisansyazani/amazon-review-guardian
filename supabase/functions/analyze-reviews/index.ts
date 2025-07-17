@@ -23,8 +23,8 @@ function classifyReview(review: any): {
   confidence: number;
   explanation: string;
 } {
-  const text = review.body?.toLowerCase() || '';
-  const rating = review.rating || 5;
+  const text = (review.text || review.body || review.content || '').toLowerCase();
+  const rating = review.rating || review.stars || 5;
   
   // Bot detection patterns
   if (text.length < 20 || /^(good|great|amazing|excellent|perfect)\.?$/i.test(text.trim())) {
@@ -158,9 +158,9 @@ serve(async (req) => {
     
     console.log('Fetching reviews from SerpAPI...');
     
-    // Fetch reviews from SerpAPI
+    // Fetch product data from SerpAPI using Amazon engine with ASIN
     const serpResponse = await fetch(
-      `https://serpapi.com/search?engine=amazon_reviews&asin=${asin}&api_key=${serpApiKey}`
+      `https://serpapi.com/search?engine=amazon&asin=${asin}&api_key=${serpApiKey}`
     );
     
     if (!serpResponse.ok) {
@@ -173,21 +173,24 @@ serve(async (req) => {
     const serpData = await serpResponse.json();
     console.log('SerpAPI response received, processing reviews...');
     
-    if (!serpData.reviews || !Array.isArray(serpData.reviews)) {
+    // SerpAPI returns reviews in the product data under 'reviews' or 'reviews_data'
+    const reviews = serpData.reviews || serpData.reviews_data || [];
+    
+    if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
       console.error('No reviews found in SerpAPI response');
       throw new Error('No reviews found for this product');
     }
     
     // Process and analyze reviews
-    const analyzedReviews = serpData.reviews.slice(0, 20).map((review: any, index: number) => {
+    const analyzedReviews = reviews.slice(0, 20).map((review: any, index: number) => {
       const classification = classifyReview(review);
       
       return {
         id: `${asin}_${index}`,
-        text: review.body || review.content || 'No review text available',
-        rating: review.rating || 5,
+        text: review.text || review.body || review.content || 'No review text available',
+        rating: review.rating || review.stars || 5,
         date: review.date || new Date().toISOString().split('T')[0],
-        author: review.name || review.author || `Reviewer ${index + 1}`,
+        author: review.name || review.author || review.reviewer_name || `Reviewer ${index + 1}`,
         ...classification
       };
     });
@@ -197,7 +200,7 @@ serve(async (req) => {
     
     const result = {
       overallTrust,
-      totalReviews: serpData.reviews.length,
+      totalReviews: reviews.length,
       analyzedReviews,
       insights
     };
@@ -208,7 +211,7 @@ serve(async (req) => {
       .insert({
         asin,
         overall_trust: overallTrust,
-        total_reviews: serpData.reviews.length,
+        total_reviews: reviews.length,
         analyzed_reviews: analyzedReviews,
         insights
       });
