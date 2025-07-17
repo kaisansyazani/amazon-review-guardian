@@ -19,10 +19,20 @@ export type Database = {
           analyzed_reviews: Json
           asin: string
           created_at: string
+          emotion_scores: Json | null
           id: string
           insights: string[]
+          keywords: string[] | null
           overall_trust: number
+          product_aspects: Json | null
           product_name: string | null
+          recommendation: string | null
+          sentiment_distribution: Json | null
+          sentiment_score: number | null
+          summary_negative: string | null
+          summary_overall: string | null
+          summary_positive: string | null
+          topics: Json | null
           total_reviews: number
           updated_at: string
         }
@@ -30,10 +40,20 @@ export type Database = {
           analyzed_reviews: Json
           asin: string
           created_at?: string
+          emotion_scores?: Json | null
           id?: string
           insights: string[]
+          keywords?: string[] | null
           overall_trust: number
+          product_aspects?: Json | null
           product_name?: string | null
+          recommendation?: string | null
+          sentiment_distribution?: Json | null
+          sentiment_score?: number | null
+          summary_negative?: string | null
+          summary_overall?: string | null
+          summary_positive?: string | null
+          topics?: Json | null
           total_reviews: number
           updated_at?: string
         }
@@ -41,10 +61,20 @@ export type Database = {
           analyzed_reviews?: Json
           asin?: string
           created_at?: string
+          emotion_scores?: Json | null
           id?: string
           insights?: string[]
+          keywords?: string[] | null
           overall_trust?: number
+          product_aspects?: Json | null
           product_name?: string | null
+          recommendation?: string | null
+          sentiment_distribution?: Json | null
+          sentiment_score?: number | null
+          summary_negative?: string | null
+          summary_overall?: string | null
+          summary_positive?: string | null
+          topics?: Json | null
           total_reviews?: number
           updated_at?: string
         }
