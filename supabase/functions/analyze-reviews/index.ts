@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -178,17 +179,102 @@ serve(async (req) => {
     // Handle reviews result
     const realReviews = reviewsResult.status === 'fulfilled' ? reviewsResult.value : [];
 
+    console.log(`Successfully fetched product details and ${realReviews.length} reviews`);
+
+    // Handle case where no reviews are available (e.g., pre-order products)
     if (realReviews.length === 0) {
-      return new Response(JSON.stringify({ 
-        error: 'Unable to fetch reviews from Amazon API. Please check the product URL and try again.' 
-      }), {
-        status: 500,
+      console.log('No reviews found - handling as pre-order or new product');
+      
+      // Create a special response for products with no reviews
+      const result = {
+        asin,
+        productName: productInfo.productName,
+        totalReviews: 0,
+        overallTrust: 0, // Cannot assess trust without reviews
+        analyzedReviews: [],
+        sentimentScore: 0,
+        sentimentDistribution: {
+          positive: 0,
+          neutral: 0,
+          negative: 0
+        },
+        emotionScores: {
+          joy: 0,
+          anger: 0,
+          surprise: 0,
+          sadness: 0
+        },
+        insights: [
+          'No reviews available for analysis',
+          'This appears to be a new or pre-order product',
+          `Product availability: ${productInfo.availability}`,
+          `Current price: $${priceAnalysis.averagePrice > 0 ? priceAnalysis.averagePrice.toFixed(2) : 'Not available'}`,
+          'Cannot assess review authenticity without reviews',
+          'Consider checking back after product release for review analysis'
+        ],
+        topics: [],
+        keywords: [],
+        productAspects: {
+          category: productInfo.category,
+          brand: productInfo.brand,
+          availability: productInfo.availability
+        },
+        summaryOverall: `This ${productInfo.productName} currently has no customer reviews available. This is typical for pre-order or newly launched products.`,
+        summaryPositive: "No positive reviews to analyze yet.",
+        summaryNegative: "No negative reviews to analyze yet.",
+        recommendation: productInfo.availability.toLowerCase().includes('pre-order') || productInfo.availability.toLowerCase().includes('release') ?
+          `This is a pre-order item (${productInfo.availability}). Consider waiting for customer reviews after release to make an informed decision.` :
+          `This product has no reviews yet. As a new item, consider researching similar products or waiting for initial customer feedback.`,
+        productContext: {
+          fraudRisk: 'High' as const, // High risk due to no reviews and limited marketplace data
+          priceAnalysis,
+          marketplaceAnalysis: [
+            { 
+              country: 'Amazon US',
+              data: { 
+                name: 'Amazon', 
+                trustScore: 0, 
+                reviewCount: 0, 
+                averageRating: 0,
+                price: priceAnalysis.averagePrice,
+                availability: productInfo.availability
+              },
+              success: true,
+              marketplace: 'amazon'
+            }
+          ]
+        }
+      };
+
+      // Store in database
+      const { error: dbError } = await supabaseClient
+        .from('analysis_results')
+        .insert({
+          asin,
+          product_name: result.productName,
+          total_reviews: 0,
+          overall_trust: 0,
+          analyzed_reviews: [],
+          sentiment_score: 0,
+          sentiment_distribution: result.sentimentDistribution,
+          emotion_scores: result.emotionScores,
+          insights: result.insights,
+          summary_overall: result.summaryOverall,
+          summary_positive: result.summaryPositive,
+          summary_negative: result.summaryNegative,
+          recommendation: result.recommendation
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+      }
+
+      return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`Successfully fetched product details and ${realReviews.length} reviews`);
-
+    // Continue with normal analysis if reviews are available
     const analyzedReviews = realReviews.map(review => {
       // Enhanced classification logic based on real review patterns
       let classification: 'genuine' | 'paid' | 'bot' | 'malicious';
