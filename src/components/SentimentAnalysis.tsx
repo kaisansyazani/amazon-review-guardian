@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { TrendingUp, Smile, Frown, Meh } from "lucide-react";
@@ -42,6 +43,9 @@ export const SentimentAnalysis = ({
     score: score
   }));
 
+  // Check if sentimentScore is a valid number (including 0)
+  const isValidSentimentScore = typeof sentimentScore === 'number' && !isNaN(sentimentScore);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -59,7 +63,7 @@ export const SentimentAnalysis = ({
               </div>
               <p className="text-sm text-muted-foreground">Overall Sentiment</p>
               <p className={`text-2xl font-bold ${getSentimentColor(sentimentScore || 0)}`}>
-                {sentimentScore ? (sentimentScore > 0 ? '+' : '') + sentimentScore.toFixed(2) : 'N/A'}
+                {isValidSentimentScore ? (sentimentScore > 0 ? '+' : '') + sentimentScore.toFixed(2) : 'N/A'}
               </p>
             </div>
             
