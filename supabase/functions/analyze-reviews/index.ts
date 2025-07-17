@@ -13,6 +13,119 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Function to fetch product details
+async function fetchProductDetails(asin: string) {
+  try {
+    console.log(`Fetching product details for ASIN: ${asin}`);
+    
+    const productResponse = await fetch(
+      `https://real-time-amazon-data.p.rapidapi.com/product-details?asin=${asin}&country=US`,
+      {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+          'x-rapidapi-key': rapidApiKey,
+        },
+      }
+    );
+
+    if (!productResponse.ok) {
+      console.error(`Product details API failed: ${productResponse.status} - ${productResponse.statusText}`);
+      return null;
+    }
+
+    const productData = await productResponse.json();
+    console.log('Product details API response:', JSON.stringify(productData, null, 2));
+
+    return productData;
+  } catch (error) {
+    console.error('Error fetching product details:', error);
+    return null;
+  }
+}
+
+// Function to analyze pricing data
+function analyzePricing(productData: any) {
+  if (!productData?.data) {
+    return {
+      prices: [],
+      averagePrice: 0,
+      priceVariation: 0,
+      suspiciousPricing: false,
+      marketplacesChecked: 0
+    };
+  }
+
+  const product = productData.data;
+  const prices = [];
+  
+  // Extract current price
+  const currentPrice = product.product_price || product.price || product.current_price;
+  const originalPrice = product.product_original_price || product.original_price || product.list_price;
+  
+  if (currentPrice) {
+    // Parse price string to number (remove currency symbols)
+    const priceValue = parseFloat(currentPrice.toString().replace(/[^0-9.]/g, ''));
+    const originalPriceValue = originalPrice ? parseFloat(originalPrice.toString().replace(/[^0-9.]/g, '')) : priceValue;
+    
+    prices.push({
+      country: 'Amazon US',
+      price: priceValue,
+      originalPrice: currentPrice.toString(),
+      marketplace: 'amazon'
+    });
+
+    // Calculate price analysis
+    const averagePrice = priceValue;
+    const priceVariation = originalPriceValue > priceValue ? 
+      ((originalPriceValue - priceValue) / originalPriceValue) * 100 : 0;
+    
+    // Detect suspicious pricing (more than 70% off or extremely low prices)
+    const suspiciousPricing = priceVariation > 70 || priceValue < 5;
+
+    return {
+      prices,
+      averagePrice,
+      priceVariation,
+      suspiciousPricing,
+      marketplacesChecked: 1,
+      crossMarketplaceAnalysis: false
+    };
+  }
+
+  return {
+    prices: [],
+    averagePrice: 0,
+    priceVariation: 0,
+    suspiciousPricing: false,
+    marketplacesChecked: 0
+  };
+}
+
+// Function to extract product information
+function extractProductInfo(productData: any) {
+  if (!productData?.data) {
+    return {
+      productName: "Amazon Product",
+      category: "Unknown",
+      brand: "Unknown",
+      availability: "Unknown"
+    };
+  }
+
+  const product = productData.data;
+  
+  return {
+    productName: product.product_title || product.title || product.product_name || "Amazon Product",
+    category: product.product_category || product.category || "Unknown",
+    brand: product.brand || product.product_brand || "Unknown",
+    availability: product.product_availability || product.availability || "Unknown",
+    images: product.product_photos || product.images || [],
+    rating: product.product_star_rating || product.rating || null,
+    totalRatings: product.product_num_ratings || product.total_ratings || null
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -50,57 +163,19 @@ serve(async (req) => {
 
     console.log('Extracted ASIN:', asin);
 
-    // Fetch real reviews from RapidAPI
-    let realReviews = [];
-    let productName = "Amazon Product";
-    let totalPages = 1;
-    
-    // Try to fetch from multiple pages to get at least 10 reviews
-    for (let page = 1; page <= 3 && realReviews.length < 10; page++) {
-      try {
-        console.log(`Fetching page ${page} of reviews for ASIN: ${asin}`);
-        
-        const reviewsResponse = await fetch(
-          `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
-          {
-            method: 'GET',
-            headers: {
-              'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
-              'x-rapidapi-key': rapidApiKey,
-            },
-          }
-        );
+    // Fetch both product details and reviews simultaneously
+    const [productDetailsData, reviewsResult] = await Promise.allSettled([
+      fetchProductDetails(asin),
+      fetchReviews(asin)
+    ]);
 
-        if (!reviewsResponse.ok) {
-          console.error(`API request failed for page ${page}: ${reviewsResponse.status} - ${reviewsResponse.statusText}`);
-          continue;
-        }
+    // Extract product information
+    const productData = productDetailsData.status === 'fulfilled' ? productDetailsData.value : null;
+    const productInfo = extractProductInfo(productData);
+    const priceAnalysis = analyzePricing(productData);
 
-        const reviewsData = await reviewsResponse.json();
-        console.log(`Page ${page} API response:`, JSON.stringify(reviewsData, null, 2));
-
-        if (reviewsData.data && reviewsData.data.reviews) {
-          const pageReviews = reviewsData.data.reviews.map((review: any, index: number) => ({
-            id: `${page}-${index + 1}`,
-            text: review.review_comment || review.review_text || review.review_body || 'No review text available',
-            rating: review.review_star_rating || review.rating || review.stars || 5,
-            date: review.review_date || review.date || new Date().toISOString().split('T')[0],
-            author: review.review_author || review.reviewer_name || review.author || 'Anonymous',
-            verified: review.is_verified_purchase !== false
-          }));
-          
-          realReviews.push(...pageReviews);
-          
-          // Set product name from first successful response
-          if (page === 1 && reviewsData.data.product_title) {
-            productName = reviewsData.data.product_title || reviewsData.data.product_name || "Amazon Product";
-          }
-        }
-      } catch (pageError) {
-        console.error(`Error fetching page ${page}:`, pageError);
-        continue;
-      }
-    }
+    // Handle reviews result
+    const realReviews = reviewsResult.status === 'fulfilled' ? reviewsResult.value : [];
 
     if (realReviews.length === 0) {
       return new Response(JSON.stringify({ 
@@ -111,10 +186,7 @@ serve(async (req) => {
       });
     }
 
-    // Limit to first 15 reviews for processing
-    realReviews = realReviews.slice(0, 15);
-    
-    console.log(`Successfully fetched ${realReviews.length} real reviews`);
+    console.log(`Successfully fetched product details and ${realReviews.length} reviews`);
 
     const analyzedReviews = realReviews.map(review => {
       // Enhanced classification logic based on real review patterns
@@ -247,7 +319,7 @@ serve(async (req) => {
     const genuineCount = analyzedReviews.filter(r => r.classification === 'genuine').length;
     const overallTrust = Math.round((genuineCount / totalReviews) * 100);
 
-    // Generate real insights
+    // Generate insights with product-specific information
     const botCount = analyzedReviews.filter(r => r.classification === 'bot').length;
     const paidCount = analyzedReviews.filter(r => r.classification === 'paid').length;
     const maliciousCount = analyzedReviews.filter(r => r.classification === 'malicious').length;
@@ -258,42 +330,39 @@ serve(async (req) => {
       `Average sentiment score: ${avgSentiment.toFixed(2)}`,
       `${botCount} potential bot reviews identified`,
       `${paidCount} likely paid reviews detected`,
-      `${maliciousCount} potentially malicious reviews found`
+      `${maliciousCount} potentially malicious reviews found`,
+      `Product price: $${priceAnalysis.averagePrice.toFixed(2)}`,
+      `Price variation: ${priceAnalysis.priceVariation.toFixed(1)}%`
     ];
 
-    // Real price analysis would require additional API calls
-    const priceAnalysis = {
-      amazonPrice: 0, // Would need product price API
-      lowestPrice: 0,
-      highestPrice: 0,
-      averagePrice: 0,
-      priceRange: 'Unknown',
-      marketplaces: ['Amazon'],
-      prices: [
-        { country: 'US', price: 0, originalPrice: 'Price not available' }
-      ],
-      priceVariation: 0,
-      suspiciousPricing: false,
-      marketplacesChecked: 1
-    };
-
-    // Simplified marketplace analysis
+    // Enhanced marketplace analysis with real data
     const marketplaceAnalysis = [
       { 
-        country: 'US',
+        country: 'Amazon US',
         data: { 
           name: 'Amazon', 
           trustScore: overallTrust, 
           reviewCount: totalReviews, 
-          averageRating: analyzedReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
+          averageRating: analyzedReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews,
+          price: priceAnalysis.averagePrice,
+          availability: productInfo.availability
         },
-        success: true
+        success: true,
+        marketplace: 'amazon'
       }
     ];
 
+    // Determine fraud risk based on multiple factors
+    let fraudRisk: 'Low' | 'Medium' | 'High' = 'Low';
+    if (overallTrust < 50 || priceAnalysis.suspiciousPricing) {
+      fraudRisk = 'High';
+    } else if (overallTrust < 70 || paidCount > totalReviews * 0.3) {
+      fraudRisk = 'Medium';
+    }
+
     const result = {
       asin,
-      productName,
+      productName: productInfo.productName,
       totalReviews,
       overallTrust,
       analyzedReviews,
@@ -303,15 +372,19 @@ serve(async (req) => {
       insights,
       topics: [], // Would require NLP processing
       keywords: [], // Would require NLP processing
-      productAspects: {}, // Would require aspect extraction
-      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews shows ${overallTrust}% appear genuine. ${sentimentDistribution.positive}% express positive sentiment.`,
+      productAspects: {
+        category: productInfo.category,
+        brand: productInfo.brand,
+        availability: productInfo.availability
+      },
+      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} shows ${overallTrust}% appear genuine. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
       summaryPositive: positiveCount > 0 ? "Customers appreciate product quality and performance based on verified reviews." : "Limited positive feedback detected.",
       summaryNegative: negativeCount > 0 ? "Some customers report issues with quality or expectations not being met." : "Few negative concerns identified.",
       recommendation: overallTrust > 70 ? 
-        "Product appears to have genuine positive reviews. Consider individual review details before purchasing." :
+        `Product appears to have genuine positive reviews at $${priceAnalysis.averagePrice.toFixed(2)}. Consider individual review details before purchasing.` :
         "Exercise caution - significant suspicious review activity detected. Read individual reviews carefully.",
       productContext: {
-        fraudRisk: overallTrust > 70 ? 'Low' : overallTrust > 50 ? 'Medium' : 'High',
+        fraudRisk,
         priceAnalysis,
         marketplaceAnalysis
       }
@@ -352,3 +425,53 @@ serve(async (req) => {
     });
   }
 });
+
+// Function to fetch reviews (extracted from existing code)
+async function fetchReviews(asin: string) {
+  let realReviews = [];
+  
+  // Try to fetch from multiple pages to get at least 10 reviews
+  for (let page = 1; page <= 3 && realReviews.length < 10; page++) {
+    try {
+      console.log(`Fetching page ${page} of reviews for ASIN: ${asin}`);
+      
+      const reviewsResponse = await fetch(
+        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+        {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+            'x-rapidapi-key': rapidApiKey,
+          },
+        }
+      );
+
+      if (!reviewsResponse.ok) {
+        console.error(`API request failed for page ${page}: ${reviewsResponse.status} - ${reviewsResponse.statusText}`);
+        continue;
+      }
+
+      const reviewsData = await reviewsResponse.json();
+      console.log(`Page ${page} API response:`, JSON.stringify(reviewsData, null, 2));
+
+      if (reviewsData.data && reviewsData.data.reviews) {
+        const pageReviews = reviewsData.data.reviews.map((review: any, index: number) => ({
+          id: `${page}-${index + 1}`,
+          text: review.review_comment || review.review_text || review.review_body || 'No review text available',
+          rating: review.review_star_rating || review.rating || review.stars || 5,
+          date: review.review_date || review.date || new Date().toISOString().split('T')[0],
+          author: review.review_author || review.reviewer_name || review.author || 'Anonymous',
+          verified: review.is_verified_purchase !== false
+        }));
+        
+        realReviews.push(...pageReviews);
+      }
+    } catch (pageError) {
+      console.error(`Error fetching page ${page}:`, pageError);
+      continue;
+    }
+  }
+
+  // Limit to first 15 reviews for processing
+  return realReviews.slice(0, 15);
+}
