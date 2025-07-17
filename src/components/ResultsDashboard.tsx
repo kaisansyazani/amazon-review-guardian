@@ -4,7 +4,6 @@ import { TrustScore } from "@/components/TrustScore";
 import { ReviewCard } from "@/components/ReviewCard";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { SentimentAnalysis } from "@/components/SentimentAnalysis";
-import { AISummaries } from "@/components/AISummaries";
 import { FraudAnalysis } from "@/components/FraudAnalysis";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,11 +34,10 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
       <TrustScore score={results.overallTrust} totalReviews={results.totalReviews} />
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="fraud">Fraud Analysis</TabsTrigger>
           <TabsTrigger value="sentiment">Sentiment</TabsTrigger>
-          <TabsTrigger value="summaries">AI Summary</TabsTrigger>
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
         </TabsList>
 
@@ -76,13 +74,6 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
               <InsightsPanel insights={results.insights} />
             </div>
           </div>
-          
-          <AISummaries 
-            summaryPositive={results.summaryPositive}
-            summaryNegative={results.summaryNegative}
-            summaryOverall={results.summaryOverall}
-            recommendation={results.recommendation}
-          />
         </TabsContent>
 
         <TabsContent value="fraud" className="space-y-6">
@@ -91,7 +82,6 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
               fraudRisk={results.productContext.fraudRisk}
               priceAnalysis={results.productContext.priceAnalysis}
               marketplaceAnalysis={results.productContext.marketplaceAnalysis}
-              fraudAnalysis={results.fraudAnalysis}
             />
           ) : (
             <Card>
@@ -107,15 +97,6 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
             sentimentScore={results.sentimentScore} 
             sentimentDistribution={results.sentimentDistribution}
             emotionScores={results.emotionScores}
-          />
-        </TabsContent>
-
-        <TabsContent value="summaries" className="space-y-6">
-          <AISummaries 
-            summaryPositive={results.summaryPositive}
-            summaryNegative={results.summaryNegative}
-            summaryOverall={results.summaryOverall}
-            recommendation={results.recommendation}
           />
         </TabsContent>
 

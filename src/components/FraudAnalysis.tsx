@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Shield, DollarSign, Globe } from "lucide-react";
+import { AlertTriangle, Shield, DollarSign, Globe, CheckCircle } from "lucide-react";
 
 interface FraudAnalysisProps {
   fraudRisk: 'Low' | 'Medium' | 'High';
@@ -10,16 +10,15 @@ interface FraudAnalysisProps {
     averagePrice: number;
     priceVariation: number;
     suspiciousPricing: boolean;
+    marketplacesChecked?: number;
   };
   marketplaceAnalysis: Array<{ country: string; data: any; success: boolean }>;
-  fraudAnalysis?: string;
 }
 
 export const FraudAnalysis = ({ 
   fraudRisk, 
   priceAnalysis, 
-  marketplaceAnalysis, 
-  fraudAnalysis 
+  marketplaceAnalysis
 }: FraudAnalysisProps) => {
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -39,13 +38,15 @@ export const FraudAnalysis = ({
     }
   };
 
+  const marketplacesChecked = priceAnalysis.marketplacesChecked || marketplaceAnalysis?.length || 0;
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Fraud Risk Assessment
+            Comprehensive Fraud Risk Assessment
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -56,9 +57,37 @@ export const FraudAnalysis = ({
             </div>
           </div>
           
-          {fraudAnalysis && (
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm leading-relaxed">{fraudAnalysis}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30">
+              <Globe className="h-4 w-4 text-primary" />
+              <div>
+                <div className="text-sm font-medium">{marketplacesChecked} Markets Analyzed</div>
+                <div className="text-xs text-muted-foreground">
+                  {marketplacesChecked >= 3 ? 'Comprehensive analysis' : 'Limited coverage'}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <div>
+                <div className="text-sm font-medium">
+                  {marketplaceAnalysis.filter(m => m.success).length} Successful Checks
+                </div>
+                <div className="text-xs text-muted-foreground">Data availability</div>
+              </div>
+            </div>
+          </div>
+
+          {marketplacesChecked < 3 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="text-sm font-medium">Limited Marketplace Coverage</span>
+              </div>
+              <p className="text-xs text-yellow-700 mt-1">
+                Only {marketplacesChecked} marketplace(s) checked. For more accurate fraud detection, at least 3 markets should be analyzed.
+              </p>
             </div>
           )}
         </CardContent>
@@ -68,7 +97,7 @@ export const FraudAnalysis = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Pricing Analysis
+            Cross-Market Pricing Analysis
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -82,7 +111,7 @@ export const FraudAnalysis = ({
               <div className="text-xs text-muted-foreground">Price Variation</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-muted/30">
-              <div className="text-lg font-bold">{marketplaceAnalysis?.length || 0}</div>
+              <div className="text-lg font-bold">{marketplacesChecked}</div>
               <div className="text-xs text-muted-foreground">Markets Checked</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-muted/30">
@@ -107,6 +136,23 @@ export const FraudAnalysis = ({
                       <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
                       <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {marketplaceAnalysis && marketplaceAnalysis.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Marketplace Availability:</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {marketplaceAnalysis.map((market, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 rounded border">
+                    <div className={`h-2 w-2 rounded-full ${market.success ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className="text-xs">{market.country}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {market.success ? '✓' : '✗'}
+                    </span>
                   </div>
                 ))}
               </div>

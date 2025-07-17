@@ -1,39 +1,39 @@
-
-import { useState } from "react";
-import { UrlInput } from "@/components/UrlInput";
-import { AnalysisProgress } from "@/components/AnalysisProgress";
+import { useState, useEffect } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ResultsDashboard } from "@/components/ResultsDashboard";
-import { Header } from "@/components/Header";
-import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 export interface AnalysisResult {
   overallTrust: number;
   totalReviews: number;
-  analyzedReviews: Review[];
+  analyzedReviews: Array<{
+    id: string;
+    text: string;
+    rating: number;
+    date: string;
+    author: string;
+    classification: 'genuine' | 'paid' | 'bot' | 'malicious';
+    confidence: number;
+    explanation: string;
+  }>;
   insights: string[];
-  sentimentScore?: number;
-  sentimentDistribution?: {
+  productName: string;
+  sentimentScore: number;
+  sentimentDistribution: {
     positive: number;
     neutral: number;
     negative: number;
   };
-  emotionScores?: {
-    [key: string]: number;
-  };
-  topics?: Array<{
+  emotionScores: Record<string, number>;
+  topics: Array<{
     name: string;
     frequency: number;
-    sentiment: 'positive' | 'negative' | 'neutral';
+    sentiment: string;
   }>;
-  keywords?: string[];
-  productAspects?: {
-    [key: string]: string;
-  };
-  summaryPositive?: string;
-  summaryNegative?: string;
-  summaryOverall?: string;
-  recommendation?: string;
-  fraudAnalysis?: string;
+  keywords: string[];
+  productAspects: Record<string, string>;
   productContext?: {
     fraudRisk: 'Low' | 'Medium' | 'High';
     priceAnalysis: {
@@ -41,169 +41,105 @@ export interface AnalysisResult {
       averagePrice: number;
       priceVariation: number;
       suspiciousPricing: boolean;
+      marketplacesChecked?: number;
     };
     marketplaceAnalysis: Array<{ country: string; data: any; success: boolean }>;
   };
 }
 
-export interface Review {
-  id: string;
-  text: string;
-  rating: number;
-  date: string;
-  author: string;
-  classification: 'genuine' | 'paid' | 'bot' | 'malicious';
-  confidence: number;
-  explanation: string;
-}
-
-const Index = () => {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState("");
+const IndexPage = () => {
+  const [productUrl, setProductUrl] = useState("");
   const [results, setResults] = useState<AnalysisResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleAnalyze = async (url: string) => {
-    setIsAnalyzing(true);
-    setProgress(0);
+  const analyzeProduct = async () => {
+    setIsLoading(true);
     setResults(null);
-
-    // Enhanced analysis steps
-    const steps = [
-      "Extracting product information...",
-      "Fetching product details from multiple marketplaces...",
-      "Analyzing pricing patterns for fraud detection...",
-      "Fetching reviews from Amazon...",
-      "Analyzing linguistic patterns...",
-      "Detecting bot-generated content...",
-      "Identifying paid reviews...",
-      "Flagging malicious posts...",
-      "Calculating trust scores with fraud context...",
-      "Generating enhanced insights..."
-    ];
-
     try {
-      // Simulate progress updates
-      for (let i = 0; i < steps.length - 1; i++) {
-        setCurrentStep(steps[i]);
-        setProgress(((i + 1) / steps.length) * 85);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      setCurrentStep(steps[steps.length - 1]);
-      setProgress(95);
-
-      // Call the enhanced edge function
-      const { data, error } = await supabase.functions.invoke('analyze-reviews', {
-        body: { url }
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: productUrl }),
       });
 
-      if (error) {
-        console.error('Analysis error:', error);
-        throw new Error(error.message || 'Failed to analyze reviews');
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Analysis failed:", errorData);
+        alert(`Analysis failed: ${errorData.error || 'Unknown error'}`);
+        return;
       }
 
-      setProgress(100);
+      const data = await response.json();
       setResults(data);
     } catch (error) {
-      console.error('Analysis failed:', error);
-      // Enhanced fallback data with fraud analysis
-      const mockResults: AnalysisResult = {
-        overallTrust: 72,
-        totalReviews: 247,
-        analyzedReviews: [
-          {
-            id: "1",
-            text: "This product is absolutely amazing! Best purchase ever! 5 stars without hesitation!",
-            rating: 5,
-            date: "2024-01-15",
-            author: "ProductLover123",
-            classification: "paid",
-            confidence: 87,
-            explanation: "Overly enthusiastic language with generic praise and lack of specific product details suggests a paid review."
-          },
-          {
-            id: "2", 
-            text: "Great quality phone case. Fits perfectly on my iPhone 15 Pro. The material feels premium and provides good protection. Drop tested from 3 feet and no damage.",
-            rating: 4,
-            date: "2024-01-12",
-            author: "TechReviewer",
-            classification: "genuine",
-            confidence: 94,
-            explanation: "Contains specific product details, balanced assessment, and practical usage information typical of authentic reviews."
-          },
-          {
-            id: "3",
-            text: "Terrible product! Complete waste of money! Buy from competitor XYZ instead they are much better!",
-            rating: 1,
-            date: "2024-01-10", 
-            author: "DisappointedUser",
-            classification: "malicious",
-            confidence: 91,
-            explanation: "Excessively negative tone with competitor promotion suggests malicious intent to damage product reputation."
-          }
-        ],
-        insights: [
-          "API temporarily unavailable - showing sample data with fraud analysis",
-          "Enhanced fraud detection and pricing analysis active",
-          "Please try again later for real analysis"
-        ],
-        fraudAnalysis: "Sample fraud analysis: Moderate risk detected based on pricing patterns.",
-        productContext: {
-          fraudRisk: 'Medium',
-          priceAnalysis: {
-            averagePrice: 29.99,
-            priceVariation: 45.2,
-            suspiciousPricing: true
-          },
-          marketplaceAnalysis: [
-            { country: 'US', data: {}, success: true },
-            { country: 'CA', data: {}, success: true }
-          ]
-        }
-      };
-      setResults(mockResults);
+      console.error("Error during analysis:", error);
+      alert("An unexpected error occurred during analysis.");
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsAnalyzing(false);
   };
 
-  const handleReset = () => {
+  const resetAnalysis = () => {
     setResults(null);
-    setProgress(0);
-    setCurrentStep("");
+    setProductUrl("");
   };
+
+  useEffect(() => {
+    const storedUrl = localStorage.getItem("productUrl");
+    if (storedUrl) {
+      setProductUrl(storedUrl);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("productUrl", productUrl);
+  }, [productUrl]);
 
   return (
-    <div className="min-h-screen bg-gradient-analysis">
-      <Header />
-      
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Amazon Review Authenticator
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Detect fake, paid, and malicious reviews with AI-powered analysis. Enhanced with fraud detection and marketplace pricing comparison.
-            </p>
-          </div>
-
-          {!isAnalyzing && !results && (
-            <UrlInput onAnalyze={handleAnalyze} />
-          )}
-
-          {isAnalyzing && (
-            <AnalysisProgress progress={progress} currentStep={currentStep} />
-          )}
-
-          {results && (
-            <ResultsDashboard results={results} onReset={handleReset} />
-          )}
+    <div className="container mx-auto py-12 px-4">
+      <div className="space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">Amazon Product Review Analysis</h1>
+          <p className="text-muted-foreground">
+            Enter an Amazon product URL to analyze its reviews.
+          </p>
         </div>
-      </main>
+
+        <div className="flex flex-col md:flex-row gap-4">
+          <Input
+            type="url"
+            placeholder="https://www.amazon.com/dp/B07Y899FF9"
+            value={productUrl}
+            onChange={(e) => setProductUrl(e.target.value)}
+          />
+          <Button onClick={analyzeProduct} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              "Analyze Product"
+            )}
+          </Button>
+        </div>
+
+        {results ? (
+          <ResultsDashboard results={results} onReset={resetAnalysis} />
+        ) : (
+          <Card className="text-center p-6 text-muted-foreground">
+            {isLoading ? (
+              "Analyzing product reviews, please wait..."
+            ) : (
+              "Enter a product URL to begin analysis."
+            )}
+          </Card>
+        )}
+      </div>
     </div>
   );
 };
 
-export default Index;
+export default IndexPage;
