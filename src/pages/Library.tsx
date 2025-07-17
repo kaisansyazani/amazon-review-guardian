@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,29 +8,13 @@ import { Header } from "@/components/Header";
 import { DetailedAnalysisView } from "@/components/DetailedAnalysisView";
 import { Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Tables } from "@/integrations/supabase/types";
 
-interface AnalysisResult {
-  id: string;
-  asin: string;
-  product_name: string;
-  overall_trust: number;
-  total_reviews: number;
-  analyzed_reviews: any[];
-  insights: string[];
-  created_at: string;
-  sentiment_score?: number;
-  sentiment_distribution?: {
-    positive: number;
-    neutral: number;
-    negative: number;
-  };
-  emotion_scores?: {
-    [key: string]: number;
-  };
-  summary_positive?: string;
-  summary_negative?: string;
-  summary_overall?: string;
-  recommendation?: string;
+// Use the database type directly but transform analyzed_reviews to proper array type
+type DatabaseAnalysisResult = Tables<'analysis_results'>;
+
+interface AnalysisResult extends Omit<DatabaseAnalysisResult, 'analyzed_reviews'> {
+  analyzed_reviews: any[]; // Transform Json to array type
 }
 
 export default function Library() {
@@ -52,7 +35,16 @@ export default function Library() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setResults(data || []);
+      
+      // Transform the database results to match our interface
+      const transformedResults = (data || []).map(result => ({
+        ...result,
+        analyzed_reviews: Array.isArray(result.analyzed_reviews) 
+          ? result.analyzed_reviews 
+          : []
+      })) as AnalysisResult[];
+      
+      setResults(transformedResults);
     } catch (error) {
       console.error('Error fetching results:', error);
       toast({

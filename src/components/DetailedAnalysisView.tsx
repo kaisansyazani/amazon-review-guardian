@@ -10,29 +10,13 @@ import { AISummaries } from "@/components/AISummaries";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Review } from "@/pages/Index";
+import { Tables } from "@/integrations/supabase/types";
 
-interface AnalysisResult {
-  id: string;
-  asin: string;
-  product_name: string;
-  overall_trust: number;
-  total_reviews: number;
+// Use the same type transformation as in Library.tsx
+type DatabaseAnalysisResult = Tables<'analysis_results'>;
+
+interface AnalysisResult extends Omit<DatabaseAnalysisResult, 'analyzed_reviews'> {
   analyzed_reviews: Review[];
-  insights: string[];
-  created_at: string;
-  sentiment_score?: number;
-  sentiment_distribution?: {
-    positive: number;
-    neutral: number;
-    negative: number;
-  };
-  emotion_scores?: {
-    [key: string]: number;
-  };
-  summary_positive?: string;
-  summary_negative?: string;
-  summary_overall?: string;
-  recommendation?: string;
 }
 
 interface DetailedAnalysisViewProps {
