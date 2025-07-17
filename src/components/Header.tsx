@@ -1,4 +1,4 @@
-import { Shield, Github, Info } from "lucide-react";
+import { Shield, Github, Info, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Header = () => {
@@ -11,12 +11,18 @@ export const Header = () => {
               <Shield className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">ReviewGuard</h2>
+              <a href="/" className="text-xl font-bold hover:text-primary transition-colors">ReviewGuard</a>
               <p className="text-sm text-muted-foreground">AI-Powered Review Analysis</p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/library">
+                <Library className="h-4 w-4 mr-2" />
+                Library
+              </a>
+            </Button>
             <Button variant="ghost" size="sm">
               <Info className="h-4 w-4 mr-2" />
               How it works
