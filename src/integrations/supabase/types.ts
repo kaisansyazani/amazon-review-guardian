@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analysis_results: {
+        Row: {
+          analyzed_reviews: Json
+          asin: string
+          created_at: string
+          id: string
+          insights: string[]
+          overall_trust: number
+          total_reviews: number
+          updated_at: string
+        }
+        Insert: {
+          analyzed_reviews: Json
+          asin: string
+          created_at?: string
+          id?: string
+          insights: string[]
+          overall_trust: number
+          total_reviews: number
+          updated_at?: string
+        }
+        Update: {
+          analyzed_reviews?: Json
+          asin?: string
+          created_at?: string
+          id?: string
+          insights?: string[]
+          overall_trust?: number
+          total_reviews?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
