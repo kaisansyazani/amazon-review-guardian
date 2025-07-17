@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrustScore } from "@/components/TrustScore";
 import { Header } from "@/components/Header";
+import { DetailedAnalysisView } from "@/components/DetailedAnalysisView";
 import { Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,13 +16,28 @@ interface AnalysisResult {
   product_name: string;
   overall_trust: number;
   total_reviews: number;
+  analyzed_reviews: any[];
   insights: string[];
   created_at: string;
+  sentiment_score?: number;
+  sentiment_distribution?: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  emotion_scores?: {
+    [key: string]: number;
+  };
+  summary_positive?: string;
+  summary_negative?: string;
+  summary_overall?: string;
+  recommendation?: string;
 }
 
 export default function Library() {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedResult, setSelectedResult] = useState<AnalysisResult | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -52,10 +69,33 @@ export default function Library() {
     return `https://www.amazon.com/dp/${asin}`;
   };
 
+  const handleCardClick = (result: AnalysisResult) => {
+    setSelectedResult(result);
+  };
+
+  const handleBackToLibrary = () => {
+    setSelectedResult(null);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  // Show detailed analysis if a result is selected
+  if (selectedResult) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <DetailedAnalysisView 
+            result={selectedResult} 
+            onBack={handleBackToLibrary}
+          />
+        </div>
       </div>
     );
   }
@@ -83,7 +123,11 @@ export default function Library() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {results.map((result) => (
-              <Card key={result.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={result.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => handleCardClick(result)}
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -94,6 +138,7 @@ export default function Library() {
                       size="sm"
                       variant="outline"
                       asChild
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <a 
                         href={generateAmazonUrl(result.asin)}
@@ -130,6 +175,12 @@ export default function Library() {
                         </p>
                       )}
                     </div>
+                  </div>
+                  
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground text-center">
+                      Click to view detailed analysis
+                    </p>
                   </div>
                 </CardContent>
               </Card>
