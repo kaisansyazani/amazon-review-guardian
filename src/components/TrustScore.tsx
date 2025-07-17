@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 
@@ -8,15 +9,15 @@ interface TrustScoreProps {
 
 export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
   const getScoreColor = (score: number) => {
-    if (score >= 75) return "trust-high";
-    if (score >= 50) return "trust-medium";
-    return "trust-low";
+    if (score >= 75) return "text-green-600 border-green-600";
+    if (score >= 50) return "text-yellow-600 border-yellow-600";
+    return "text-red-600 border-red-600";
   };
 
   const getScoreIcon = (score: number) => {
-    if (score >= 75) return <ShieldCheck className="h-8 w-8" />;
-    if (score >= 50) return <Shield className="h-8 w-8" />;
-    return <ShieldAlert className="h-8 w-8" />;
+    if (score >= 75) return <ShieldCheck className="h-6 w-6 text-green-600" />;
+    if (score >= 50) return <Shield className="h-6 w-6 text-yellow-600" />;
+    return <ShieldAlert className="h-6 w-6 text-red-600" />;
   };
 
   const getScoreLabel = (score: number) => {
@@ -31,6 +32,12 @@ export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
     return "Significant fake review activity detected. Be very careful with this product.";
   };
 
+  const getScoreLabelColor = (score: number) => {
+    if (score >= 75) return "text-green-700";
+    if (score >= 50) return "text-yellow-700";
+    return "text-red-700";
+  };
+
   return (
     <Card className="shadow-card-custom">
       <CardHeader>
@@ -38,19 +45,19 @@ export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-6">
-          <div className="relative">
-            <div className={`w-24 h-24 rounded-full border-8 border-${getScoreColor(score)} flex items-center justify-center`}>
+          <div className="relative flex items-center justify-center">
+            <div className={`w-24 h-24 rounded-full border-4 ${getScoreColor(score)} flex items-center justify-center bg-background`}>
               <div className="text-center">
                 <div className="text-2xl font-bold">{score}%</div>
               </div>
             </div>
-            <div className={`absolute inset-0 flex items-center justify-center text-${getScoreColor(score)}`}>
+            <div className="absolute top-1 right-1">
               {getScoreIcon(score)}
             </div>
           </div>
           
           <div className="flex-1">
-            <h3 className={`text-xl font-semibold text-${getScoreColor(score)} mb-1`}>
+            <h3 className={`text-xl font-semibold ${getScoreLabelColor(score)} mb-1`}>
               {getScoreLabel(score)}
             </h3>
             <p className="text-muted-foreground mb-3">
