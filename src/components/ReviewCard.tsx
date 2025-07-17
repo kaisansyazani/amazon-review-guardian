@@ -1,7 +1,8 @@
+
 import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle } from "lucide-react";
+import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh } from "lucide-react";
 
 interface ReviewCardProps {
   review: Review;
@@ -53,16 +54,44 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
     }
   };
 
+  const getSentimentIndicator = (rating: number) => {
+    if (rating >= 4) {
+      return {
+        icon: <Smile className="h-4 w-4" />,
+        variant: 'positive' as const,
+        label: 'Positive'
+      };
+    } else if (rating <= 2) {
+      return {
+        icon: <Frown className="h-4 w-4" />,
+        variant: 'negative' as const,
+        label: 'Negative'
+      };
+    } else {
+      return {
+        icon: <Meh className="h-4 w-4" />,
+        variant: 'neutral' as const,
+        label: 'Neutral'
+      };
+    }
+  };
+
+  const sentiment = getSentimentIndicator(review.rating);
+
   return (
     <Card className="border-l-4 border-l-muted">
       <CardContent className="p-4">
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Badge variant={getClassificationColor(review.classification) as any} className="gap-1">
                   {getClassificationIcon(review.classification)}
                   {getClassificationLabel(review.classification)}
+                </Badge>
+                <Badge variant={sentiment.variant} className="gap-1">
+                  {sentiment.icon}
+                  {sentiment.label}
                 </Badge>
                 <span className="text-sm font-medium">{review.confidence}% confidence</span>
               </div>

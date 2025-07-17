@@ -1,18 +1,19 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Shield, DollarSign, Globe, CheckCircle } from "lucide-react";
+import { AlertTriangle, Shield, DollarSign, Globe, CheckCircle, ShoppingCart } from "lucide-react";
 
 interface FraudAnalysisProps {
   fraudRisk: 'Low' | 'Medium' | 'High';
   priceAnalysis: {
-    prices?: Array<{ country: string; price: number; originalPrice: string }>;
+    prices?: Array<{ country: string; price: number; originalPrice: string; marketplace?: string }>;
     averagePrice: number;
     priceVariation: number;
     suspiciousPricing: boolean;
     marketplacesChecked?: number;
+    crossMarketplaceAnalysis?: boolean;
   };
-  marketplaceAnalysis: Array<{ country: string; data: any; success: boolean }>;
+  marketplaceAnalysis: Array<{ country: string; data: any; success: boolean; marketplace?: string }>;
 }
 
 export const FraudAnalysis = ({ 
@@ -39,6 +40,8 @@ export const FraudAnalysis = ({
   };
 
   const marketplacesChecked = priceAnalysis.marketplacesChecked || marketplaceAnalysis?.length || 0;
+  const amazonMarketplaces = marketplaceAnalysis.filter(m => m.marketplace === 'amazon' || m.country.includes('Amazon')) || [];
+  const otherMarketplaces = marketplaceAnalysis.filter(m => m.marketplace === 'other' || !m.country.includes('Amazon')) || [];
 
   return (
     <div className="space-y-6">
@@ -63,7 +66,7 @@ export const FraudAnalysis = ({
               <div>
                 <div className="text-sm font-medium">{marketplacesChecked} Markets Analyzed</div>
                 <div className="text-xs text-muted-foreground">
-                  {marketplacesChecked >= 3 ? 'Comprehensive analysis' : 'Limited coverage'}
+                  {priceAnalysis.crossMarketplaceAnalysis ? 'Cross-platform analysis' : 'Amazon-only analysis'}
                 </div>
               </div>
             </div>
@@ -87,6 +90,18 @@ export const FraudAnalysis = ({
               </div>
               <p className="text-xs text-yellow-700 mt-1">
                 Only {marketplacesChecked} marketplace(s) checked. For more accurate fraud detection, at least 3 markets should be analyzed.
+              </p>
+            </div>
+          )}
+
+          {priceAnalysis.crossMarketplaceAnalysis && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-800">
+                <ShoppingCart className="h-4 w-4" />
+                <span className="text-sm font-medium">Cross-Platform Analysis Enabled</span>
+              </div>
+              <p className="text-xs text-blue-700 mt-1">
+                Analysis includes data from Amazon ({amazonMarketplaces.filter(m => m.success).length}) and other marketplaces ({otherMarketplaces.filter(m => m.success).length}) for comprehensive fraud detection.
               </p>
             </div>
           )}
@@ -129,8 +144,15 @@ export const FraudAnalysis = ({
                 {priceAnalysis.prices.map((price, index) => (
                   <div key={index} className="flex items-center justify-between p-2 rounded border">
                     <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      {price.marketplace === 'amazon' || price.country.includes('Amazon') ? (
+                        <Globe className="h-4 w-4 text-orange-500" />
+                      ) : (
+                        <ShoppingCart className="h-4 w-4 text-blue-500" />
+                      )}
                       <span className="text-sm font-medium">{price.country}</span>
+                      {!(price.marketplace === 'amazon' || price.country.includes('Amazon')) && (
+                        <Badge variant="outline" className="text-xs">Other Platform</Badge>
+                      )}
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
@@ -149,7 +171,10 @@ export const FraudAnalysis = ({
                 {marketplaceAnalysis.map((market, index) => (
                   <div key={index} className="flex items-center gap-2 p-2 rounded border">
                     <div className={`h-2 w-2 rounded-full ${market.success ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className="text-xs">{market.country}</span>
+                    <span className="text-xs flex-1">{market.country}</span>
+                    {!(market.marketplace === 'amazon' || market.country.includes('Amazon')) && (
+                      <Badge variant="outline" className="text-xs px-1 py-0">Other</Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {market.success ? '✓' : '✗'}
                     </span>
