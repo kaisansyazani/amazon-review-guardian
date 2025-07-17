@@ -1,0 +1,236 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+const serpApiKey = Deno.env.get('SERPAPI_KEY') || '1c84582c85a2b0d6f0db016d96173fcaa8540d54a94bf5725c076069a3781ed4';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+function extractASIN(url: string): string | null {
+  const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/i) || url.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+  return asinMatch ? asinMatch[1] : null;
+}
+
+function classifyReview(review: any): {
+  classification: 'genuine' | 'paid' | 'bot' | 'malicious';
+  confidence: number;
+  explanation: string;
+} {
+  const text = review.body?.toLowerCase() || '';
+  const rating = review.rating || 5;
+  
+  // Bot detection patterns
+  if (text.length < 20 || /^(good|great|amazing|excellent|perfect)\.?$/i.test(text.trim())) {
+    return {
+      classification: 'bot',
+      confidence: 85,
+      explanation: 'Very short or generic content typical of automated reviews.'
+    };
+  }
+  
+  // Paid review patterns
+  if (text.includes('received') && (text.includes('free') || text.includes('discount')) ||
+      /amazing|incredible|outstanding|phenomenal/g.test(text) && rating === 5) {
+    return {
+      classification: 'paid',
+      confidence: 78,
+      explanation: 'Contains language patterns and enthusiasm levels typical of incentivized reviews.'
+    };
+  }
+  
+  // Malicious patterns
+  if (text.includes('buy') && text.includes('instead') ||
+      text.includes('terrible') && text.includes('waste') && rating === 1) {
+    return {
+      classification: 'malicious',
+      confidence: 82,
+      explanation: 'Excessively negative language or competitor promotion suggests malicious intent.'
+    };
+  }
+  
+  // Genuine review indicators
+  if (text.length > 50 && text.length < 500 && 
+      (text.includes('but') || text.includes('however') || text.includes('although'))) {
+    return {
+      classification: 'genuine',
+      confidence: 88,
+      explanation: 'Balanced language with specific details and nuanced opinions typical of authentic reviews.'
+    };
+  }
+  
+  return {
+    classification: 'genuine',
+    confidence: 65,
+    explanation: 'Review appears authentic based on length and content patterns.'
+  };
+}
+
+function calculateTrustScore(analyzedReviews: any[]): number {
+  const genuine = analyzedReviews.filter(r => r.classification === 'genuine').length;
+  const total = analyzedReviews.length;
+  return Math.round((genuine / total) * 100);
+}
+
+function generateInsights(analyzedReviews: any[]): string[] {
+  const insights = [];
+  const classifications = analyzedReviews.reduce((acc, review) => {
+    acc[review.classification] = (acc[review.classification] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const totalReviews = analyzedReviews.length;
+  const suspiciousCount = (classifications.paid || 0) + (classifications.bot || 0) + (classifications.malicious || 0);
+  const suspiciousPercentage = Math.round((suspiciousCount / totalReviews) * 100);
+  
+  if (suspiciousPercentage > 30) {
+    insights.push(`${suspiciousPercentage}% of reviews show suspicious patterns`);
+  }
+  
+  if (classifications.paid > 0) {
+    insights.push(`${classifications.paid} potentially paid reviews detected`);
+  }
+  
+  if (classifications.bot > 0) {
+    insights.push(`${classifications.bot} bot-generated reviews identified`);
+  }
+  
+  if (classifications.malicious > 0) {
+    insights.push(`${classifications.malicious} malicious reviews flagged`);
+  }
+  
+  const fiveStarCount = analyzedReviews.filter(r => r.rating === 5).length;
+  if (fiveStarCount / totalReviews > 0.7) {
+    insights.push('High concentration of 5-star ratings detected');
+  }
+  
+  return insights.length > 0 ? insights : ['No suspicious patterns detected in the analyzed reviews'];
+}
+
+serve(async (req) => {
+  console.log('Analyze reviews function called:', req.method);
+  
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { url } = await req.json();
+    console.log('Analyzing URL:', url);
+    
+    const asin = extractASIN(url);
+    if (!asin) {
+      console.error('Invalid Amazon URL, no ASIN found');
+      return new Response(
+        JSON.stringify({ error: 'Invalid Amazon product URL' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('Extracted ASIN:', asin);
+    
+    // Check if we have cached results
+    const { data: cached } = await supabase
+      .from('analysis_results')
+      .select('*')
+      .eq('asin', asin)
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // 24 hours
+      .single();
+    
+    if (cached) {
+      console.log('Returning cached results');
+      return new Response(
+        JSON.stringify({
+          overallTrust: cached.overall_trust,
+          totalReviews: cached.total_reviews,
+          analyzedReviews: cached.analyzed_reviews,
+          insights: cached.insights
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('Fetching reviews from SerpAPI...');
+    
+    // Fetch reviews from SerpAPI
+    const serpResponse = await fetch(
+      `https://serpapi.com/search?engine=amazon_reviews&asin=${asin}&api_key=${serpApiKey}`
+    );
+    
+    if (!serpResponse.ok) {
+      console.error('SerpAPI error:', serpResponse.status, serpResponse.statusText);
+      const errorText = await serpResponse.text();
+      console.error('SerpAPI error body:', errorText);
+      throw new Error(`SerpAPI request failed: ${serpResponse.status}`);
+    }
+    
+    const serpData = await serpResponse.json();
+    console.log('SerpAPI response received, processing reviews...');
+    
+    if (!serpData.reviews || !Array.isArray(serpData.reviews)) {
+      console.error('No reviews found in SerpAPI response');
+      throw new Error('No reviews found for this product');
+    }
+    
+    // Process and analyze reviews
+    const analyzedReviews = serpData.reviews.slice(0, 20).map((review: any, index: number) => {
+      const classification = classifyReview(review);
+      
+      return {
+        id: `${asin}_${index}`,
+        text: review.body || review.content || 'No review text available',
+        rating: review.rating || 5,
+        date: review.date || new Date().toISOString().split('T')[0],
+        author: review.name || review.author || `Reviewer ${index + 1}`,
+        ...classification
+      };
+    });
+    
+    const overallTrust = calculateTrustScore(analyzedReviews);
+    const insights = generateInsights(analyzedReviews);
+    
+    const result = {
+      overallTrust,
+      totalReviews: serpData.reviews.length,
+      analyzedReviews,
+      insights
+    };
+    
+    // Cache the results
+    await supabase
+      .from('analysis_results')
+      .insert({
+        asin,
+        overall_trust: overallTrust,
+        total_reviews: serpData.reviews.length,
+        analyzed_reviews: analyzedReviews,
+        insights
+      });
+    
+    console.log('Analysis complete, returning results');
+    
+    return new Response(
+      JSON.stringify(result),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+    
+  } catch (error) {
+    console.error('Error in analyze-reviews function:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Failed to analyze reviews',
+        details: error.toString()
+      }), 
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+});
