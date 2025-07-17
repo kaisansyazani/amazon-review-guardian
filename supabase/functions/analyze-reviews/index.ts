@@ -43,63 +43,191 @@ async function fetchProductDetails(asin: string) {
   }
 }
 
-// Function to analyze pricing data
-function analyzePricing(productData: any) {
-  if (!productData?.data) {
+// Function to search for similar products for price comparison
+async function searchSimilarProducts(productTitle: string, category: string) {
+  try {
+    console.log(`Searching for similar products: ${productTitle}`);
+    
+    // Extract key terms from product title for better search
+    const searchTerms = productTitle
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(' ')
+      .filter(word => word.length > 3 && !['amazon', 'the', 'and', 'for', 'with'].includes(word))
+      .slice(0, 3)
+      .join(' ');
+
+    const searchResponse = await fetch(
+      `https://real-time-amazon-data.p.rapidapi.com/search?query=${encodeURIComponent(searchTerms)}&page=1&country=US&sort_by=RELEVANCE&product_condition=ALL`,
+      {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+          'x-rapidapi-key': rapidApiKey,
+        },
+      }
+    );
+
+    if (!searchResponse.ok) {
+      console.error(`Search API failed: ${searchResponse.status} - ${searchResponse.statusText}`);
+      return [];
+    }
+
+    const searchData = await searchResponse.json();
+    console.log('Search API response for similar products:', JSON.stringify(searchData, null, 2));
+
+    // Return first 5 similar products for price comparison
+    return searchData?.data?.products?.slice(0, 5) || [];
+  } catch (error) {
+    console.error('Error searching for similar products:', error);
+    return [];
+  }
+}
+
+// Function to fetch prices from multiple countries/marketplaces
+async function fetchMultiMarketplacePrices(asin: string) {
+  const countries = ['US', 'UK', 'DE', 'CA', 'FR'];
+  const marketplaceData = [];
+  
+  for (const country of countries) {
+    try {
+      console.log(`Fetching price data for ASIN: ${asin} in country: ${country}`);
+      
+      const response = await fetch(
+        `https://real-time-amazon-data.p.rapidapi.com/product-details?asin=${asin}&country=${country}`,
+        {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+            'x-rapidapi-key': rapidApiKey,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.data?.product_price) {
+          const price = parseFloat(data.data.product_price.toString().replace(/[^0-9.]/g, ''));
+          const originalPrice = data.data.product_original_price ? 
+            parseFloat(data.data.product_original_price.toString().replace(/[^0-9.]/g, '')) : price;
+          
+          marketplaceData.push({
+            country: `Amazon ${country}`,
+            price,
+            originalPrice: data.data.product_price.toString(),
+            marketplace: 'amazon',
+            success: true,
+            data: {
+              name: `Amazon ${country}`,
+              trustScore: 85, // Amazon is generally trustworthy
+              reviewCount: data.data.product_num_ratings || 0,
+              averageRating: parseFloat(data.data.product_star_rating || '0'),
+              price,
+              availability: data.data.product_availability || 'Available'
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching price for ${country}:`, error);
+      marketplaceData.push({
+        country: `Amazon ${country}`,
+        price: 0,
+        originalPrice: 'N/A',
+        marketplace: 'amazon',
+        success: false,
+        data: null
+      });
+    }
+  }
+
+  return marketplaceData;
+}
+
+// Enhanced function to analyze pricing data with cross-marketplace comparison
+async function analyzePricing(productData: any, similarProducts: any[], marketplacePrices: any[]) {
+  console.log('Analyzing pricing with cross-marketplace and similar product data');
+  
+  const allPrices = [];
+  const marketplaceAnalysis = [];
+  
+  // Add original product price
+  if (productData?.data?.product_price) {
+    const price = parseFloat(productData.data.product_price.toString().replace(/[^0-9.]/g, ''));
+    allPrices.push(price);
+  }
+
+  // Add marketplace prices
+  marketplacePrices.forEach(marketplace => {
+    if (marketplace.success && marketplace.price > 0) {
+      allPrices.push(marketplace.price);
+      marketplaceAnalysis.push(marketplace);
+    }
+  });
+
+  // Add similar product prices for comparison
+  const similarProductPrices = [];
+  similarProducts.forEach(product => {
+    if (product.product_price) {
+      const price = parseFloat(product.product_price.toString().replace(/[^0-9.]/g, ''));
+      if (price > 0) {
+        similarProductPrices.push(price);
+        allPrices.push({
+          country: `Similar Product (${product.product_title?.substring(0, 30)}...)`,
+          price,
+          originalPrice: product.product_price.toString(),
+          marketplace: 'other'
+        });
+      }
+    }
+  });
+
+  if (allPrices.length === 0) {
     return {
       prices: [],
       averagePrice: 0,
       priceVariation: 0,
       suspiciousPricing: false,
       marketplacesChecked: 0,
-      crossMarketplaceAnalysis: false
+      crossMarketplaceAnalysis: false,
+      similarProductsChecked: similarProducts.length
     };
   }
 
-  const product = productData.data;
-  const prices = [];
-  
-  // Extract current price
-  const currentPrice = product.product_price || product.price || product.current_price;
-  const originalPrice = product.product_original_price || product.original_price || product.list_price;
-  
-  if (currentPrice) {
-    // Parse price string to number (remove currency symbols)
-    const priceValue = parseFloat(currentPrice.toString().replace(/[^0-9.]/g, ''));
-    const originalPriceValue = originalPrice ? parseFloat(originalPrice.toString().replace(/[^0-9.]/g, '')) : priceValue;
-    
-    prices.push({
-      country: 'Amazon US',
-      price: priceValue,
-      originalPrice: currentPrice.toString(),
-      marketplace: 'amazon'
-    });
+  // Calculate price statistics
+  const numericPrices = allPrices.filter(p => typeof p === 'number');
+  const averagePrice = numericPrices.reduce((sum, price) => sum + price, 0) / numericPrices.length;
+  const minPrice = Math.min(...numericPrices);
+  const maxPrice = Math.max(...numericPrices);
+  const priceVariation = numericPrices.length > 1 ? ((maxPrice - minPrice) / averagePrice) * 100 : 0;
 
-    // Calculate price analysis
-    const averagePrice = priceValue;
-    const priceVariation = originalPriceValue > priceValue ? 
-      ((originalPriceValue - priceValue) / originalPriceValue) * 100 : 0;
-    
-    // Detect suspicious pricing (more than 70% off or extremely low prices)
-    const suspiciousPricing = priceVariation > 70 || priceValue < 5;
+  // Detect suspicious pricing patterns
+  const suspiciousPricing = 
+    priceVariation > 50 || // High price variation across markets
+    minPrice < 5 || // Extremely low prices
+    (similarProductPrices.length > 0 && 
+     Math.min(...numericPrices) < Math.min(...similarProductPrices) * 0.3); // Much cheaper than similar products
 
-    return {
-      prices,
-      averagePrice,
-      priceVariation,
-      suspiciousPricing,
-      marketplacesChecked: 1,
-      crossMarketplaceAnalysis: false
-    };
-  }
+  // Format prices for display
+  const formattedPrices = allPrices
+    .filter(p => typeof p === 'object')
+    .concat(
+      marketplaceAnalysis.map(m => ({
+        country: m.country,
+        price: m.price,
+        originalPrice: m.originalPrice,
+        marketplace: m.marketplace
+      }))
+    );
 
   return {
-    prices: [],
-    averagePrice: 0,
-    priceVariation: 0,
-    suspiciousPricing: false,
-    marketplacesChecked: 0,
-    crossMarketplaceAnalysis: false
+    prices: formattedPrices,
+    averagePrice,
+    priceVariation,
+    suspiciousPricing,
+    marketplacesChecked: marketplaceAnalysis.length,
+    crossMarketplaceAnalysis: marketplaceAnalysis.length >= 3,
+    similarProductsChecked: similarProducts.length
   };
 }
 
@@ -164,26 +292,52 @@ serve(async (req) => {
 
     console.log('Extracted ASIN:', asin);
 
-    // Fetch both product details and reviews simultaneously
-    const [productDetailsData, reviewsResult] = await Promise.allSettled([
+    // Fetch product details, reviews, and enhanced price analysis simultaneously
+    const [productDetailsData, reviewsResult, marketplacePricesResult] = await Promise.allSettled([
       fetchProductDetails(asin),
-      fetchReviews(asin)
+      fetchReviews(asin),
+      fetchMultiMarketplacePrices(asin)
     ]);
 
     // Extract product information
     const productData = productDetailsData.status === 'fulfilled' ? productDetailsData.value : null;
     const productInfo = extractProductInfo(productData);
-    const priceAnalysis = analyzePricing(productData);
+    
+    // Get marketplace prices
+    const marketplacePrices = marketplacePricesResult.status === 'fulfilled' ? marketplacePricesResult.value : [];
+    
+    // Search for similar products for price comparison
+    const similarProducts = await searchSimilarProducts(productInfo.productName, productInfo.category);
+    
+    // Enhanced price analysis with cross-marketplace and similar product comparison
+    const priceAnalysis = await analyzePricing(productData, similarProducts, marketplacePrices);
 
     // Handle reviews result
     const realReviews = reviewsResult.status === 'fulfilled' ? reviewsResult.value : [];
 
-    console.log(`Successfully fetched product details and ${realReviews.length} reviews`);
+    console.log(`Successfully fetched product details, ${realReviews.length} reviews, ${marketplacePrices.length} marketplace prices, and ${similarProducts.length} similar products`);
 
     // Handle case where no reviews are available (e.g., pre-order products)
     if (realReviews.length === 0) {
       console.log('No reviews found - handling as pre-order or new product');
       
+      // Enhanced marketplace analysis including similar product comparison
+      const enhancedMarketplaceAnalysis = marketplacePrices.length > 0 ? marketplacePrices : [
+        { 
+          country: 'Amazon US',
+          data: { 
+            name: 'Amazon', 
+            trustScore: 0, 
+            reviewCount: 0, 
+            averageRating: 0,
+            price: priceAnalysis.averagePrice,
+            availability: productInfo.availability
+          },
+          success: true,
+          marketplace: 'amazon'
+        }
+      ];
+
       // Create a special response for products with no reviews
       const result = {
         asin,
@@ -208,6 +362,9 @@ serve(async (req) => {
           'This appears to be a new or pre-order product',
           `Product availability: ${productInfo.availability}`,
           `Current price: $${priceAnalysis.averagePrice > 0 ? priceAnalysis.averagePrice.toFixed(2) : 'Not available'}`,
+          `Price compared across ${priceAnalysis.marketplacesChecked} marketplaces`,
+          `${similarProducts.length} similar products found for price comparison`,
+          priceAnalysis.suspiciousPricing ? 'Suspicious pricing patterns detected' : 'Pricing appears normal compared to similar products',
           'Cannot assess review authenticity without reviews',
           'Consider checking back after product release for review analysis'
         ],
@@ -218,34 +375,21 @@ serve(async (req) => {
           brand: productInfo.brand,
           availability: productInfo.availability
         },
-        summaryOverall: `This ${productInfo.productName} currently has no customer reviews available. This is typical for pre-order or newly launched products.`,
+        summaryOverall: `This ${productInfo.productName} currently has no customer reviews available. Price analysis across ${priceAnalysis.marketplacesChecked} marketplaces and ${similarProducts.length} similar products shows ${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns' : 'normal pricing'}.`,
         summaryPositive: "No positive reviews to analyze yet.",
         summaryNegative: "No negative reviews to analyze yet.",
-        recommendation: productInfo.availability.toLowerCase().includes('pre-order') || productInfo.availability.toLowerCase().includes('release') ?
-          `This is a pre-order item (${productInfo.availability}). Consider waiting for customer reviews after release to make an informed decision.` :
-          `This product has no reviews yet. As a new item, consider researching similar products or waiting for initial customer feedback.`,
+        recommendation: priceAnalysis.marketplacesChecked < 3 ?
+          `High fraud risk due to limited marketplace coverage (${priceAnalysis.marketplacesChecked}/3 minimum). Consider waiting for more market data before purchase.` :
+          (priceAnalysis.suspiciousPricing ? 
+            `Caution advised - suspicious pricing detected when compared to similar products. Verify seller authenticity before purchase.` :
+            `Pricing appears consistent across markets. As a new item, consider researching similar products or waiting for initial customer feedback.`),
         productContext: {
-          fraudRisk: 'High' as const, // High risk due to no reviews and limited marketplace data
+          fraudRisk: (priceAnalysis.marketplacesChecked < 3 || priceAnalysis.suspiciousPricing) ? 'High' : 'Medium' as const,
           priceAnalysis,
-          marketplaceAnalysis: [
-            { 
-              country: 'Amazon US',
-              data: { 
-                name: 'Amazon', 
-                trustScore: 0, 
-                reviewCount: 0, 
-                averageRating: 0,
-                price: priceAnalysis.averagePrice,
-                availability: productInfo.availability
-              },
-              success: true,
-              marketplace: 'amazon'
-            }
-          ]
+          marketplaceAnalysis: enhancedMarketplaceAnalysis
         }
       };
 
-      // Store in database
       const { error: dbError } = await supabaseClient
         .from('analysis_results')
         .insert({
@@ -405,7 +549,7 @@ serve(async (req) => {
     const genuineCount = analyzedReviews.filter(r => r.classification === 'genuine').length;
     const overallTrust = Math.round((genuineCount / totalReviews) * 100);
 
-    // Generate insights with product-specific information
+    // Generate insights with enhanced price analysis information
     const botCount = analyzedReviews.filter(r => r.classification === 'bot').length;
     const paidCount = analyzedReviews.filter(r => r.classification === 'paid').length;
     const maliciousCount = analyzedReviews.filter(r => r.classification === 'malicious').length;
@@ -418,11 +562,13 @@ serve(async (req) => {
       `${paidCount} likely paid reviews detected`,
       `${maliciousCount} potentially malicious reviews found`,
       `Product price: $${priceAnalysis.averagePrice.toFixed(2)}`,
-      `Price variation: ${priceAnalysis.priceVariation.toFixed(1)}%`
+      `Price variation across ${priceAnalysis.marketplacesChecked} marketplaces: ${priceAnalysis.priceVariation.toFixed(1)}%`,
+      `${similarProducts.length} similar products analyzed for price comparison`,
+      priceAnalysis.suspiciousPricing ? 'Suspicious pricing patterns detected compared to similar products' : 'Pricing appears consistent with similar products'
     ];
 
-    // Enhanced marketplace analysis with real data
-    const marketplaceAnalysis = [
+    // Enhanced marketplace analysis with cross-platform data
+    const enhancedMarketplaceAnalysis = marketplacePrices.length > 0 ? marketplacePrices : [
       { 
         country: 'Amazon US',
         data: { 
@@ -438,17 +584,12 @@ serve(async (req) => {
       }
     ];
 
-    // Determine fraud risk based on multiple factors
+    // Determine fraud risk based on multiple factors including enhanced price analysis
     let fraudRisk: 'Low' | 'Medium' | 'High' = 'Low';
-    if (overallTrust < 50 || priceAnalysis.suspiciousPricing) {
+    if (overallTrust < 50 || priceAnalysis.suspiciousPricing || priceAnalysis.marketplacesChecked < 3) {
       fraudRisk = 'High';
     } else if (overallTrust < 70 || paidCount > totalReviews * 0.3) {
       fraudRisk = 'Medium';
-    }
-
-    // Update fraud risk to High if less than 3 marketplaces checked
-    if (priceAnalysis.marketplacesChecked < 3) {
-      fraudRisk = 'High';
     }
 
     const result = {
@@ -468,20 +609,19 @@ serve(async (req) => {
         brand: productInfo.brand,
         availability: productInfo.availability
       },
-      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} shows ${overallTrust}% appear genuine. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
+      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} shows ${overallTrust}% appear genuine. Cross-marketplace price analysis across ${priceAnalysis.marketplacesChecked} markets reveals ${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns' : 'consistent pricing'}. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
       summaryPositive: positiveCount > 0 ? "Customers appreciate product quality and performance based on verified reviews." : "Limited positive feedback detected.",
       summaryNegative: negativeCount > 0 ? "Some customers report issues with quality or expectations not being met." : "Few negative concerns identified.",
-      recommendation: overallTrust > 70 && priceAnalysis.marketplacesChecked >= 3 ? 
-        `Product appears to have genuine positive reviews at $${priceAnalysis.averagePrice.toFixed(2)}. Consider individual review details before purchasing.` :
-        `Exercise caution - ${priceAnalysis.marketplacesChecked < 3 ? 'insufficient marketplace coverage and ' : ''}suspicious review activity detected. Read individual reviews carefully.`,
+      recommendation: overallTrust > 70 && priceAnalysis.marketplacesChecked >= 3 && !priceAnalysis.suspiciousPricing ? 
+        `Product appears to have genuine positive reviews and consistent pricing across ${priceAnalysis.marketplacesChecked} marketplaces at $${priceAnalysis.averagePrice.toFixed(2)}. Consider individual review details before purchasing.` :
+        `Exercise caution - ${priceAnalysis.marketplacesChecked < 3 ? 'insufficient marketplace coverage, ' : ''}${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns detected, ' : ''}${overallTrust < 70 ? 'questionable review authenticity detected' : ''}. Read individual reviews carefully and verify seller credentials.`,
       productContext: {
         fraudRisk,
         priceAnalysis,
-        marketplaceAnalysis
+        marketplaceAnalysis: enhancedMarketplaceAnalysis
       }
     };
 
-    // Store in database
     const { error: dbError } = await supabaseClient
       .from('analysis_results')
       .insert({
