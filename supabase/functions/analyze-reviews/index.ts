@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -52,7 +51,8 @@ function analyzePricing(productData: any) {
       averagePrice: 0,
       priceVariation: 0,
       suspiciousPricing: false,
-      marketplacesChecked: 0
+      marketplacesChecked: 0,
+      crossMarketplaceAnalysis: false
     };
   }
 
@@ -98,7 +98,8 @@ function analyzePricing(productData: any) {
     averagePrice: 0,
     priceVariation: 0,
     suspiciousPricing: false,
-    marketplacesChecked: 0
+    marketplacesChecked: 0,
+    crossMarketplaceAnalysis: false
   };
 }
 
@@ -360,6 +361,11 @@ serve(async (req) => {
       fraudRisk = 'Medium';
     }
 
+    // Update fraud risk to High if less than 3 marketplaces checked
+    if (priceAnalysis.marketplacesChecked < 3) {
+      fraudRisk = 'High';
+    }
+
     const result = {
       asin,
       productName: productInfo.productName,
@@ -380,9 +386,9 @@ serve(async (req) => {
       summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} shows ${overallTrust}% appear genuine. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
       summaryPositive: positiveCount > 0 ? "Customers appreciate product quality and performance based on verified reviews." : "Limited positive feedback detected.",
       summaryNegative: negativeCount > 0 ? "Some customers report issues with quality or expectations not being met." : "Few negative concerns identified.",
-      recommendation: overallTrust > 70 ? 
+      recommendation: overallTrust > 70 && priceAnalysis.marketplacesChecked >= 3 ? 
         `Product appears to have genuine positive reviews at $${priceAnalysis.averagePrice.toFixed(2)}. Consider individual review details before purchasing.` :
-        "Exercise caution - significant suspicious review activity detected. Read individual reviews carefully.",
+        `Exercise caution - ${priceAnalysis.marketplacesChecked < 3 ? 'insufficient marketplace coverage and ' : ''}suspicious review activity detected. Read individual reviews carefully.`,
       productContext: {
         fraudRisk,
         priceAnalysis,

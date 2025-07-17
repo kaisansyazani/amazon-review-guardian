@@ -66,7 +66,7 @@ export const FraudAnalysis = ({
               <div>
                 <div className="text-sm font-medium">{marketplacesChecked} Markets Analyzed</div>
                 <div className="text-xs text-muted-foreground">
-                  {priceAnalysis.crossMarketplaceAnalysis ? 'Cross-platform analysis' : 'Amazon-only analysis'}
+                  {priceAnalysis.crossMarketplaceAnalysis ? 'Cross-platform analysis' : 'Single marketplace analysis'}
                 </div>
               </div>
             </div>
@@ -83,25 +83,25 @@ export const FraudAnalysis = ({
           </div>
 
           {marketplacesChecked < 3 && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center gap-2 text-yellow-800">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 text-red-800">
                 <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm font-medium">Limited Marketplace Coverage</span>
+                <span className="text-sm font-medium">Insufficient Marketplace Coverage</span>
               </div>
-              <p className="text-xs text-yellow-700 mt-1">
-                Only {marketplacesChecked} marketplace(s) checked. For more accurate fraud detection, at least 3 markets should be analyzed.
+              <p className="text-xs text-red-700 mt-1">
+                Only {marketplacesChecked} marketplace(s) checked. For reliable fraud detection, at least 3 markets must be analyzed. Current analysis may not be comprehensive.
               </p>
             </div>
           )}
 
-          {priceAnalysis.crossMarketplaceAnalysis && (
+          {marketplacesChecked >= 3 && priceAnalysis.crossMarketplaceAnalysis && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center gap-2 text-blue-800">
                 <ShoppingCart className="h-4 w-4" />
-                <span className="text-sm font-medium">Cross-Platform Analysis Enabled</span>
+                <span className="text-sm font-medium">Comprehensive Cross-Platform Analysis</span>
               </div>
               <p className="text-xs text-blue-700 mt-1">
-                Analysis includes data from Amazon ({amazonMarketplaces.filter(m => m.success).length}) and other marketplaces ({otherMarketplaces.filter(m => m.success).length}) for comprehensive fraud detection.
+                Analysis includes data from {marketplacesChecked} marketplaces including Amazon ({amazonMarketplaces.filter(m => m.success).length}) and other platforms ({otherMarketplaces.filter(m => m.success).length}) for comprehensive fraud detection.
               </p>
             </div>
           )}
