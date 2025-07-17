@@ -80,6 +80,72 @@ export type Database = {
         }
         Relationships: []
       }
+      qa_questions: {
+        Row: {
+          category: string
+          correct_answer: number
+          created_at: string
+          difficulty_level: string
+          explanation: string
+          id: string
+          options: Json
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          correct_answer: number
+          created_at?: string
+          difficulty_level?: string
+          explanation: string
+          id?: string
+          options: Json
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          correct_answer?: number
+          created_at?: string
+          difficulty_level?: string
+          explanation?: string
+          id?: string
+          options?: Json
+          question?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quiz_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          questions_answered: Json
+          score: number
+          total_questions: number
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          questions_answered?: Json
+          score?: number
+          total_questions?: number
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          questions_answered?: Json
+          score?: number
+          total_questions?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,5 +1,5 @@
 
-import { Shield, Github, Info, Library } from "lucide-react";
+import { Shield, Info, Library, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Header = () => {
@@ -30,13 +30,17 @@ export const Header = () => {
                 Library
               </a>
             </Button>
-            <Button variant="ghost" size="sm">
-              <Info className="h-4 w-4 mr-2" />
-              How it works
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/qa">
+                <Brain className="h-4 w-4 mr-2" />
+                Q&A Training
+              </a>
             </Button>
-            <Button variant="ghost" size="sm">
-              <Github className="h-4 w-4 mr-2" />
-              GitHub
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/how-it-works">
+                <Info className="h-4 w-4 mr-2" />
+                How it works
+              </a>
             </Button>
           </nav>
         </div>
