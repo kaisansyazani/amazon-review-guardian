@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -79,6 +80,62 @@ serve(async (req) => {
         date: '2024-01-03',
         author: 'Mike R.',
         verified: true
+      },
+      {
+        id: '6',
+        text: 'Outstanding quality and fast shipping. Exceeded my expectations completely!',
+        rating: 5,
+        date: '2024-01-20',
+        author: 'Lisa K.',
+        verified: true
+      },
+      {
+        id: '7',
+        text: 'Product is okay, nothing special. Works as advertised but could be better.',
+        rating: 3,
+        date: '2024-01-18',
+        author: 'Tom H.',
+        verified: true
+      },
+      {
+        id: '8',
+        text: 'Worst purchase ever! Product arrived damaged and customer service was unhelpful.',
+        rating: 1,
+        date: '2024-01-16',
+        author: 'DisappointedBuyer',
+        verified: true
+      },
+      {
+        id: '9',
+        text: 'Great value for money. Highly recommended for anyone looking for this type of product.',
+        rating: 4,
+        date: '2024-01-14',
+        author: 'Jennifer L.',
+        verified: true
+      },
+      {
+        id: '10',
+        text: 'Perfect! Exactly what I needed. Fast delivery and excellent packaging.',
+        rating: 5,
+        date: '2024-01-12',
+        author: 'David P.',
+        verified: true
+      },
+      {
+        id: '11',
+        text: 'This is the best thing ever invented! Buy multiple! 10/10 stars! Incredible deal!',
+        rating: 5,
+        date: '2024-01-11',
+        author: 'SuperReviewer99',
+        verified: false
+      },
+      {
+        id: '12',
+        text: 'Average product. Does the job but nothing extraordinary. Price is fair.',
+        rating: 3,
+        date: '2024-01-09',
+        author: 'Regular User',
+        verified: true
       }
     ];
 
@@ -92,7 +149,7 @@ serve(async (req) => {
         classification = 'bot';
         explanation = 'Unverified purchase with suspiciously short review text';
         confidence = 92;
-      } else if (review.text.includes('Best product ever') || review.text.includes('Buy now')) {
+      } else if (review.text.includes('Best product ever') || review.text.includes('Buy now') || review.text.includes('Buy multiple')) {
         classification = 'paid';
         explanation = 'Contains promotional language typical of paid reviews';
         confidence = 88;
@@ -145,10 +202,10 @@ serve(async (req) => {
 
       // Calculate emotion scores for this review
       const emotionScores = {
-        joy: text.includes('happy') || text.includes('amazing') || text.includes('love') ? 0.8 : 0.1,
-        anger: text.includes('angry') || text.includes('terrible') || text.includes('awful') ? 0.8 : 0.1,
-        surprise: text.includes('unexpected') || text.includes('surprised') || text.includes('wow') ? 0.6 : 0.1,
-        sadness: text.includes('disappointed') || text.includes('sad') || text.includes('waste') ? 0.7 : 0.1
+        joy: text.includes('happy') || text.includes('amazing') || text.includes('love') || text.includes('outstanding') || text.includes('perfect') ? 0.8 : 0.1,
+        anger: text.includes('angry') || text.includes('terrible') || text.includes('awful') || text.includes('worst') ? 0.8 : 0.1,
+        surprise: text.includes('unexpected') || text.includes('surprised') || text.includes('wow') || text.includes('exceeded') ? 0.6 : 0.1,
+        sadness: text.includes('disappointed') || text.includes('sad') || text.includes('waste') || text.includes('unhelpful') ? 0.7 : 0.1
       };
 
       return {
