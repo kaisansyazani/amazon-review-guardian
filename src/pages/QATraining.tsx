@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Brain, CheckCircle, XCircle, RotateCcw, Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface Question {
   id: string;
@@ -60,9 +61,20 @@ const QATraining = () => {
         return;
       }
 
+      // Convert database questions to component format
+      const formattedQuestions: Question[] = allQuestions.map((q: Tables<'qa_questions'>) => ({
+        id: q.id,
+        question: q.question,
+        options: Array.isArray(q.options) ? q.options as string[] : JSON.parse(q.options as string),
+        correct_answer: q.correct_answer,
+        explanation: q.explanation,
+        difficulty_level: q.difficulty_level,
+        category: q.category
+      }));
+
       // Randomize and pick 10 questions (or all if less than 10)
-      const shuffled = allQuestions.sort(() => 0.5 - Math.random());
-      const selectedQuestions = shuffled.slice(0, Math.min(10, allQuestions.length));
+      const shuffled = formattedQuestions.sort(() => 0.5 - Math.random());
+      const selectedQuestions = shuffled.slice(0, Math.min(10, formattedQuestions.length));
       
       setQuestions(selectedQuestions);
 
@@ -80,7 +92,18 @@ const QATraining = () => {
 
       if (sessionError) throw sessionError;
 
-      setQuizSession(session);
+      // Convert session to component format
+      const formattedSession: QuizSession = {
+        id: session.id,
+        questions_answered: Array.isArray(session.questions_answered) 
+          ? session.questions_answered as QuizSession['questions_answered']
+          : [],
+        score: session.score,
+        total_questions: session.total_questions,
+        completed_at: session.completed_at
+      };
+
+      setQuizSession(formattedSession);
       setCurrentQuestionIndex(0);
       setSelectedAnswer(null);
       setShowExplanation(false);
