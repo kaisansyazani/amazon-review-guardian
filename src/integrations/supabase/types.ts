@@ -22,6 +22,7 @@ export type Database = {
           id: string
           insights: string[]
           overall_trust: number
+          product_name: string | null
           total_reviews: number
           updated_at: string
         }
@@ -32,6 +33,7 @@ export type Database = {
           id?: string
           insights: string[]
           overall_trust: number
+          product_name?: string | null
           total_reviews: number
           updated_at?: string
         }
@@ -42,6 +44,7 @@ export type Database = {
           id?: string
           insights?: string[]
           overall_trust?: number
+          product_name?: string | null
           total_reviews?: number
           updated_at?: string
         }

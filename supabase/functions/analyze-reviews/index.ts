@@ -151,13 +151,33 @@ serve(async (req) => {
           overallTrust: cached.overall_trust,
           totalReviews: cached.total_reviews,
           analyzedReviews: cached.analyzed_reviews,
-          insights: cached.insights
+          insights: cached.insights,
+          productName: cached.product_name || 'Unknown Product'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log('Fetching reviews from RapidAPI...');
+    console.log('Fetching product details and reviews from RapidAPI...');
+    
+    // First, get product details to extract the product name
+    const productResponse = await fetch(
+      `https://real-time-amazon-data.p.rapidapi.com/product-details?asin=${asin}&country=US`,
+      {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+          'x-rapidapi-key': rapidApiKey
+        }
+      }
+    );
+    
+    let productName = 'Unknown Product';
+    if (productResponse.ok) {
+      const productData = await productResponse.json();
+      productName = productData.data?.product_title || productData.data?.title || 'Unknown Product';
+      console.log('Product name extracted:', productName);
+    }
     
     // Fetch product reviews from RapidAPI - request more pages if needed to get at least 10 reviews
     const rapidResponse = await fetch(
@@ -245,7 +265,8 @@ serve(async (req) => {
       overallTrust,
       totalReviews: reviewsToAnalyze.length, // Use actual analyzed count
       analyzedReviews,
-      insights
+      insights,
+      productName
     };
     
     // Cache the results
@@ -253,6 +274,7 @@ serve(async (req) => {
       .from('analysis_results')
       .insert({
         asin,
+        product_name: productName,
         overall_trust: overallTrust,
         total_reviews: reviewsToAnalyze.length, // Use actual analyzed count
         analyzed_reviews: analyzedReviews,

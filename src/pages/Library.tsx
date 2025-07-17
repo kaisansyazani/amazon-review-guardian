@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 interface AnalysisResult {
   id: string;
   asin: string;
+  product_name: string;
   overall_trust: number;
   total_reviews: number;
   insights: string[];
@@ -85,7 +86,10 @@ export default function Library() {
               <Card key={result.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-mono">{result.asin}</CardTitle>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg mb-1">{result.product_name || 'Unknown Product'}</CardTitle>
+                      <CardDescription className="text-sm font-mono">{result.asin}</CardDescription>
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
