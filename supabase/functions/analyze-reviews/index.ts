@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
@@ -9,7 +10,7 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-const serpApiKey = Deno.env.get('SERPAPI_KEY') || '1c84582c85a2b0d6f0db016d96173fcaa8540d54a94bf5725c076069a3781ed4';
+const rapidApiKey = '102e838313msh88095ddd501a9e0p155418jsn629c6e1096f4';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -23,8 +24,8 @@ function classifyReview(review: any): {
   confidence: number;
   explanation: string;
 } {
-  const text = (review.text || review.body || review.content || '').toLowerCase();
-  const rating = review.rating || review.stars || 5;
+  const text = (review.review_comment || review.text || review.body || review.content || '').toLowerCase();
+  const rating = review.review_star_rating || review.rating || review.stars || 5;
   
   // Bot detection patterns
   if (text.length < 20 || /^(good|great|amazing|excellent|perfect)\.?$/i.test(text.trim())) {
@@ -156,28 +157,35 @@ serve(async (req) => {
       );
     }
     
-    console.log('Fetching reviews from SerpAPI...');
+    console.log('Fetching reviews from RapidAPI...');
     
-    // Fetch product data from SerpAPI using Amazon engine with ASIN
-    const serpResponse = await fetch(
-      `https://serpapi.com/search?engine=amazon&asin=${asin}&api_key=${serpApiKey}`
+    // Fetch product reviews from RapidAPI
+    const rapidResponse = await fetch(
+      `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=1&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+      {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+          'x-rapidapi-key': rapidApiKey
+        }
+      }
     );
     
-    if (!serpResponse.ok) {
-      console.error('SerpAPI error:', serpResponse.status, serpResponse.statusText);
-      const errorText = await serpResponse.text();
-      console.error('SerpAPI error body:', errorText);
-      throw new Error(`SerpAPI request failed: ${serpResponse.status}`);
+    if (!rapidResponse.ok) {
+      console.error('RapidAPI error:', rapidResponse.status, rapidResponse.statusText);
+      const errorText = await rapidResponse.text();
+      console.error('RapidAPI error body:', errorText);
+      throw new Error(`RapidAPI request failed: ${rapidResponse.status}`);
     }
     
-    const serpData = await serpResponse.json();
-    console.log('SerpAPI response received, processing reviews...');
+    const rapidData = await rapidResponse.json();
+    console.log('RapidAPI response received, processing reviews...');
     
-    // SerpAPI returns reviews in the product data under 'reviews' or 'reviews_data'
-    const reviews = serpData.reviews || serpData.reviews_data || [];
+    // RapidAPI returns reviews in the data.reviews array
+    const reviews = rapidData.data?.reviews || [];
     
     if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
-      console.error('No reviews found in SerpAPI response');
+      console.error('No reviews found in RapidAPI response');
       throw new Error('No reviews found for this product');
     }
     
@@ -187,10 +195,10 @@ serve(async (req) => {
       
       return {
         id: `${asin}_${index}`,
-        text: review.text || review.body || review.content || 'No review text available',
-        rating: review.rating || review.stars || 5,
-        date: review.date || new Date().toISOString().split('T')[0],
-        author: review.name || review.author || review.reviewer_name || `Reviewer ${index + 1}`,
+        text: review.review_comment || review.text || review.body || 'No review text available',
+        rating: review.review_star_rating || review.rating || review.stars || 5,
+        date: review.review_date || new Date().toISOString().split('T')[0],
+        author: review.review_author || review.name || review.author || `Reviewer ${index + 1}`,
         ...classification
       };
     });
