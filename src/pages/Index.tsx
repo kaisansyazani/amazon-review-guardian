@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { ResultsDashboard } from "@/components/ResultsDashboard";
 import { Header } from "@/components/Header";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface AnalysisResult {
   overallTrust: number;
@@ -64,22 +65,16 @@ const IndexPage = () => {
     setIsLoading(true);
     setResults(null);
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url: productUrl }),
+      const { data, error } = await supabase.functions.invoke('analyze-reviews', {
+        body: { url: productUrl }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Analysis failed:", errorData);
-        alert(`Analysis failed: ${errorData.error || 'Unknown error'}`);
+      if (error) {
+        console.error("Analysis failed:", error);
+        alert(`Analysis failed: ${error.message || 'Unknown error'}`);
         return;
       }
 
-      const data = await response.json();
       setResults(data);
     } catch (error) {
       console.error("Error during analysis:", error);
