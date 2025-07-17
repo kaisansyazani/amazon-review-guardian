@@ -159,7 +159,7 @@ serve(async (req) => {
     
     console.log('Fetching reviews from RapidAPI...');
     
-    // Fetch product reviews from RapidAPI
+    // Fetch product reviews from RapidAPI - request more pages if needed to get at least 10 reviews
     const rapidResponse = await fetch(
       `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=1&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
       {
@@ -182,15 +182,50 @@ serve(async (req) => {
     console.log('RapidAPI response received, processing reviews...');
     
     // RapidAPI returns reviews in the data.reviews array
-    const reviews = rapidData.data?.reviews || [];
+    let reviews = rapidData.data?.reviews || [];
     
-    if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
+    if (!reviews || !Array.isArray(reviews)) {
       console.error('No reviews found in RapidAPI response');
       throw new Error('No reviews found for this product');
     }
     
-    // Process and analyze reviews
-    const analyzedReviews = reviews.slice(0, 20).map((review: any, index: number) => {
+    // If we have fewer than 10 reviews, try to get more from page 2
+    if (reviews.length < 10) {
+      console.log(`Only ${reviews.length} reviews found on page 1, fetching page 2...`);
+      try {
+        const page2Response = await fetch(
+          `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=2&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+          {
+            method: 'GET',
+            headers: {
+              'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+              'x-rapidapi-key': rapidApiKey
+            }
+          }
+        );
+        
+        if (page2Response.ok) {
+          const page2Data = await page2Response.json();
+          const page2Reviews = page2Data.data?.reviews || [];
+          reviews = [...reviews, ...page2Reviews];
+          console.log(`Added ${page2Reviews.length} reviews from page 2. Total: ${reviews.length}`);
+        }
+      } catch (error) {
+        console.log('Could not fetch page 2, continuing with available reviews:', error);
+      }
+    }
+    
+    // Ensure we have at least some reviews
+    if (reviews.length === 0) {
+      throw new Error('No reviews found for this product');
+    }
+    
+    // Take exactly 10 reviews (or whatever is available if less than 10)
+    const reviewsToAnalyze = reviews.slice(0, 10);
+    console.log(`Analyzing ${reviewsToAnalyze.length} reviews`);
+    
+    // Process and analyze exactly 10 reviews (or whatever is available)
+    const analyzedReviews = reviewsToAnalyze.map((review: any, index: number) => {
       const classification = classifyReview(review);
       
       return {
@@ -208,7 +243,7 @@ serve(async (req) => {
     
     const result = {
       overallTrust,
-      totalReviews: reviews.length,
+      totalReviews: reviewsToAnalyze.length, // Use actual analyzed count
       analyzedReviews,
       insights
     };
@@ -219,7 +254,7 @@ serve(async (req) => {
       .insert({
         asin,
         overall_trust: overallTrust,
-        total_reviews: reviews.length,
+        total_reviews: reviewsToAnalyze.length, // Use actual analyzed count
         analyzed_reviews: analyzedReviews,
         insights
       });
