@@ -10,6 +10,28 @@ export interface AnalysisResult {
   totalReviews: number;
   analyzedReviews: Review[];
   insights: string[];
+  sentimentScore?: number;
+  sentimentDistribution?: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  emotionScores?: {
+    [key: string]: number;
+  };
+  topics?: Array<{
+    name: string;
+    frequency: number;
+    sentiment: 'positive' | 'negative' | 'neutral';
+  }>;
+  keywords?: string[];
+  productAspects?: {
+    [key: string]: string;
+  };
+  summaryPositive?: string;
+  summaryNegative?: string;
+  summaryOverall?: string;
+  recommendation?: string;
 }
 
 export interface Review {
