@@ -1,11 +1,12 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Shield, DollarSign, Globe, CheckCircle, ShoppingCart, ExternalLink } from "lucide-react";
+import { AlertTriangle, Shield, DollarSign, Globe, CheckCircle, ShoppingCart } from "lucide-react";
 
 interface FraudAnalysisProps {
   fraudRisk: 'Low' | 'Medium' | 'High';
   priceAnalysis: {
-    prices?: Array<{ country: string; price: number; originalPrice: string; marketplace?: string; url?: string }>;
+    prices?: Array<{ country: string; price: number; originalPrice: string; marketplace?: string }>;
     averagePrice: number;
     priceVariation: number;
     suspiciousPricing: boolean;
@@ -230,21 +231,9 @@ export const FraudAnalysis = ({
                       <Globe className="h-4 w-4 text-orange-500" />
                       <span className="text-sm font-medium">{price.country}</span>
                     </div>
-                    <div className="text-right flex items-center gap-2">
-                      <div>
-                        <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
-                      </div>
-                      {price.url && (
-                        <a 
-                          href={price.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/80 transition-colors"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
+                    <div className="text-right">
+                      <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
                     </div>
                   </div>
                 ))}
@@ -263,22 +252,9 @@ export const FraudAnalysis = ({
                       <span className="text-sm font-medium">{price.country}</span>
                       <Badge variant="outline" className="text-xs">Similar Product</Badge>
                     </div>
-                    <div className="text-right flex items-center gap-2">
-                      <div>
-                        <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
-                        <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
-                      </div>
-                      {price.url && (
-                        <a 
-                          href={price.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/80 transition-colors"
-                          title="View similar product"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
+                    <div className="text-right">
+                      <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
                     </div>
                   </div>
                 ))}
