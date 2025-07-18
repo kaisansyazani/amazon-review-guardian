@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrustScore } from "@/components/TrustScore";
@@ -16,6 +15,13 @@ interface DetailedAnalysisViewProps {
 }
 
 export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewProps) => {
+  // Helper function to determine fraud risk with proper typing
+  const getFraudRisk = (trustScore: number): "Low" | "Medium" | "High" => {
+    if (trustScore >= 80) return "Low";
+    if (trustScore >= 60) return "Medium";
+    return "High";
+  };
+
   // Transform stored data to match the expected interface
   const transformedResult = {
     overallTrust: result.overall_trust,
@@ -31,7 +37,7 @@ export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewPro
     summaryNegative: result.summary_negative,
     recommendation: result.recommendation,
     productContext: {
-      fraudRisk: result.overall_trust >= 80 ? 'Low' : result.overall_trust >= 60 ? 'Medium' : 'High',
+      fraudRisk: getFraudRisk(result.overall_trust),
       priceAnalysis: {
         prices: [
           { country: 'Amazon US', price: 29.99, originalPrice: '$29.99', marketplace: 'amazon', url: `https://amazon.com/dp/${result.asin}` },
