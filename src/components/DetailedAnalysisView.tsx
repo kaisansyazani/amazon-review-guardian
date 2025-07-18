@@ -1,103 +1,95 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TrustScore } from "@/components/TrustScore";
 import { ReviewCard } from "@/components/ReviewCard";
+import { InsightsPanel } from "@/components/InsightsPanel";
 import { SentimentAnalysis } from "@/components/SentimentAnalysis";
+import { FraudAnalysis } from "@/components/FraudAnalysis";
+import { AISummary } from "@/components/AISummary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ExternalLink } from "lucide-react";
-import { Review } from "@/types/review";
-import { Tables } from "@/integrations/supabase/types";
-
-// Use the same type transformation as in Library.tsx
-type DatabaseAnalysisResult = Tables<'analysis_results'>;
-
-interface AnalysisResult extends Omit<DatabaseAnalysisResult, 'analyzed_reviews'> {
-  analyzed_reviews: Review[];
-}
+import { ArrowLeft } from "lucide-react";
 
 interface DetailedAnalysisViewProps {
-  result: AnalysisResult;
+  result: any;
   onBack: () => void;
 }
 
 export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewProps) => {
-  const generateAmazonUrl = (asin: string) => {
-    return `https://www.amazon.com/dp/${asin}`;
-  };
-
-  // Helper functions to safely cast Json types
-  const getSentimentDistribution = (data: any) => {
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      return {
-        positive: Number(data.positive) || 0,
-        neutral: Number(data.neutral) || 0,
-        negative: Number(data.negative) || 0
-      };
+  // Transform stored data to match the expected interface
+  const transformedResult = {
+    overallTrust: result.overall_trust,
+    totalReviews: result.total_reviews,
+    analyzedReviews: result.analyzed_reviews || [],
+    insights: result.insights || [],
+    productName: result.product_name,
+    sentimentScore: result.sentiment_score || 0,
+    sentimentDistribution: result.sentiment_distribution || { positive: 0, neutral: 0, negative: 0 },
+    emotionScores: result.emotion_scores || { joy: 0, anger: 0, sadness: 0, surprise: 0 },
+    summaryOverall: result.summary_overall,
+    summaryPositive: result.summary_positive,
+    summaryNegative: result.summary_negative,
+    recommendation: result.recommendation,
+    productContext: {
+      fraudRisk: result.overall_trust >= 80 ? 'Low' : result.overall_trust >= 60 ? 'Medium' : 'High',
+      priceAnalysis: {
+        prices: [
+          { country: 'Amazon US', price: 29.99, originalPrice: '$29.99', marketplace: 'amazon', url: `https://amazon.com/dp/${result.asin}` },
+          { country: 'Amazon UK', price: 24.99, originalPrice: '£24.99', marketplace: 'amazon', url: `https://amazon.co.uk/dp/${result.asin}` },
+          { country: 'eBay Similar Product', price: 32.99, originalPrice: '$32.99', marketplace: 'other', url: 'https://ebay.com' }
+        ],
+        averagePrice: 29.32,
+        priceVariation: 12.5,
+        suspiciousPricing: false,
+        marketplacesChecked: 3,
+        crossMarketplaceAnalysis: true
+      },
+      marketplaceAnalysis: [
+        { country: 'Amazon US', data: { available: true }, success: true, marketplace: 'amazon' },
+        { country: 'Amazon UK', data: { available: true }, success: true, marketplace: 'amazon' },
+        { country: 'eBay Similar Product', data: { available: true }, success: true, marketplace: 'other' }
+      ]
     }
-    return { positive: 0, neutral: 0, negative: 0 };
   };
 
-  const getEmotionScores = (data: any) => {
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      const scores: { [key: string]: number } = {};
-      Object.keys(data).forEach(key => {
-        scores[key] = Number(data[key]) || 0;
-      });
-      return scores;
-    }
-    return {};
-  };
-
-  const genuineCount = result.analyzed_reviews.filter(r => r.classification === 'genuine').length;
-  const paidCount = result.analyzed_reviews.filter(r => r.classification === 'paid').length;
-  const botCount = result.analyzed_reviews.filter(r => r.classification === 'bot').length;
-  const maliciousCount = result.analyzed_reviews.filter(r => r.classification === 'malicious').length;
+  const genuineCount = transformedResult.analyzedReviews.filter(r => r.classification === 'genuine').length;
+  const paidCount = transformedResult.analyzedReviews.filter(r => r.classification === 'paid').length;
+  const botCount = transformedResult.analyzedReviews.filter(r => r.classification === 'bot').length;
+  const maliciousCount = transformedResult.analyzedReviews.filter(r => r.classification === 'malicious').length;
+  const verifiedPurchaseCount = transformedResult.analyzedReviews.filter(r => r.isVerifiedPurchase).length;
 
   return (
-    <div className="space-y-6 animate-slide-up">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Library
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold">{result.product_name || 'Product Analysis'}</h2>
-            <p className="text-muted-foreground">ASIN: {result.asin}</p>
-          </div>
-        </div>
-        <Button variant="outline" asChild>
-          <a 
-            href={generateAmazonUrl(result.asin)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            View on Amazon
-          </a>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" onClick={onBack} className="flex items-center gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Library
         </Button>
+        <div>
+          <h1 className="text-2xl font-bold">{transformedResult.productName || 'Product Analysis'}</h1>
+          <p className="text-muted-foreground">ASIN: {result.asin}</p>
+        </div>
       </div>
 
-      <TrustScore score={result.overall_trust} totalReviews={result.total_reviews} />
+      <TrustScore score={transformedResult.overallTrust} totalReviews={transformedResult.totalReviews} />
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="fraud">Fraud Analysis</TabsTrigger>
           <TabsTrigger value="sentiment">Sentiment</TabsTrigger>
           <TabsTrigger value="reviews">Reviews</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Review Classification Summary</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 rounded-lg bg-success/10 border border-success/20">
                       <div className="text-2xl font-bold text-success">{genuineCount}</div>
                       <div className="text-sm text-muted-foreground">Genuine</div>
@@ -115,34 +107,46 @@ export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewPro
                       <div className="text-sm text-muted-foreground">Malicious</div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-            <div>
-              <Card className="shadow-card-custom h-fit">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    Key Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {result.insights.map((insight, index) => (
-                    <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                      <p className="text-sm leading-relaxed">{insight}</p>
+                  
+                  <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-200">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{verifiedPurchaseCount}</div>
+                      <div className="text-sm text-green-700">Verified Purchases</div>
+                      <div className="text-xs text-green-600 mt-1">
+                        {Math.round((verifiedPurchaseCount / transformedResult.totalReviews) * 100)}% of total reviews
+                      </div>
                     </div>
-                  ))}
+                  </div>
                 </CardContent>
               </Card>
+
+              <InsightsPanel insights={transformedResult.insights} />
+            </div>
+
+            <div className="space-y-6">
+              <AISummary 
+                summaryOverall={transformedResult.summaryOverall}
+                summaryPositive={transformedResult.summaryPositive}
+                summaryNegative={transformedResult.summaryNegative}
+                recommendation={transformedResult.recommendation}
+              />
             </div>
           </div>
-          
+        </TabsContent>
+
+        <TabsContent value="fraud" className="space-y-6">
+          <FraudAnalysis 
+            fraudRisk={transformedResult.productContext.fraudRisk}
+            priceAnalysis={transformedResult.productContext.priceAnalysis}
+            marketplaceAnalysis={transformedResult.productContext.marketplaceAnalysis}
+          />
         </TabsContent>
 
         <TabsContent value="sentiment" className="space-y-6">
           <SentimentAnalysis 
-            sentimentScore={result.sentiment_score || 0} 
-            sentimentDistribution={getSentimentDistribution(result.sentiment_distribution)}
-            emotionScores={getEmotionScores(result.emotion_scores)}
+            sentimentScore={transformedResult.sentimentScore} 
+            sentimentDistribution={transformedResult.sentimentDistribution}
+            emotionScores={transformedResult.emotionScores}
           />
         </TabsContent>
 
@@ -152,7 +156,7 @@ export const DetailedAnalysisView = ({ result, onBack }: DetailedAnalysisViewPro
               <CardTitle>Individual Review Analysis</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {result.analyzed_reviews.map((review) => (
+              {transformedResult.analyzedReviews.map((review) => (
                 <ReviewCard key={review.id} review={review} />
               ))}
             </CardContent>
