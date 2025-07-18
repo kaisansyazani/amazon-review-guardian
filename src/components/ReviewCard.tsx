@@ -106,6 +106,11 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                   {sentiment.icon}
                   {sentiment.label}
                 </Badge>
+                {/* Star rating badge */}
+                <Badge variant="outline" className="gap-1 text-xs bg-yellow-50 text-yellow-800 border-yellow-200 hover:bg-yellow-100">
+                  <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                  {review.rating}/5
+                </Badge>
                 {/* Media presence indicators - more prominent */}
                 {review.hasImage && (
                   <Badge variant="outline" className="gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
