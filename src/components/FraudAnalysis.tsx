@@ -43,6 +43,34 @@ export const FraudAnalysis = ({
   const amazonMarketplaces = marketplaceAnalysis.filter(m => m.marketplace === 'amazon' || m.country.includes('Amazon')) || [];
   const otherMarketplaces = marketplaceAnalysis.filter(m => m.marketplace === 'other' || !m.country.includes('Amazon')) || [];
 
+  // Enhanced price analysis for cross-marketplace comparison
+  const amazonPrices = priceAnalysis.prices?.filter(p => p.marketplace === 'amazon' || p.country.includes('Amazon')) || [];
+  const similarProductPrices = priceAnalysis.prices?.filter(p => p.marketplace === 'other' || (!p.country.includes('Amazon') && !p.marketplace)) || [];
+  
+  // Calculate price statistics for Amazon marketplaces only
+  const amazonPriceValues = amazonPrices.map(p => p.price).filter(p => p > 0);
+  const amazonMinPrice = amazonPriceValues.length > 0 ? Math.min(...amazonPriceValues) : 0;
+  const amazonMaxPrice = amazonPriceValues.length > 0 ? Math.max(...amazonPriceValues) : 0;
+  const amazonAvgPrice = amazonPriceValues.length > 0 ? amazonPriceValues.reduce((sum, p) => sum + p, 0) / amazonPriceValues.length : 0;
+  const amazonPriceVariation = amazonPriceValues.length > 1 ? ((amazonMaxPrice - amazonMinPrice) / amazonAvgPrice) * 100 : 0;
+  
+  // Enhanced suspicious pricing detection
+  const isSuspiciousAmazonPricing = amazonPriceVariation > 30; // More than 30% variation across Amazon marketplaces
+  const hasSimilarProductComparison = similarProductPrices.length > 0;
+  
+  let comparisonWithSimilarProducts = '';
+  if (hasSimilarProductComparison) {
+    const similarPriceValues = similarProductPrices.map(p => p.price).filter(p => p > 0);
+    const similarAvgPrice = similarPriceValues.reduce((sum, p) => sum + p, 0) / similarPriceValues.length;
+    const priceDifferenceVsSimilar = amazonAvgPrice > 0 ? ((amazonAvgPrice - similarAvgPrice) / similarAvgPrice) * 100 : 0;
+    
+    if (Math.abs(priceDifferenceVsSimilar) > 40) {
+      comparisonWithSimilarProducts = `${priceDifferenceVsSimilar > 0 ? 'Significantly higher' : 'Suspiciously lower'} than similar products (${Math.abs(priceDifferenceVsSimilar).toFixed(1)}% difference)`;
+    } else {
+      comparisonWithSimilarProducts = `Price consistent with similar products (${Math.abs(priceDifferenceVsSimilar).toFixed(1)}% difference)`;
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -94,7 +122,20 @@ export const FraudAnalysis = ({
             </div>
           )}
 
-          {marketplacesChecked >= 3 && priceAnalysis.crossMarketplaceAnalysis && (
+          {isSuspiciousAmazonPricing && amazonPrices.length >= 2 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 text-red-800">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="text-sm font-medium">Suspicious Cross-Marketplace Pricing Detected</span>
+              </div>
+              <p className="text-xs text-red-700 mt-1">
+                Price variation of {amazonPriceVariation.toFixed(1)}% across Amazon marketplaces (${amazonMinPrice.toFixed(2)} - ${amazonMaxPrice.toFixed(2)}). 
+                Such significant differences may indicate pricing manipulation or regional exploitation.
+              </p>
+            </div>
+          )}
+
+          {marketplacesChecked >= 3 && priceAnalysis.crossMarketplaceAnalysis && !isSuspiciousAmazonPricing && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center gap-2 text-blue-800">
                 <ShoppingCart className="h-4 w-4" />
@@ -102,6 +143,19 @@ export const FraudAnalysis = ({
               </div>
               <p className="text-xs text-blue-700 mt-1">
                 Analysis includes data from {marketplacesChecked} marketplaces including Amazon ({amazonMarketplaces.filter(m => m.success).length}) and other platforms ({otherMarketplaces.filter(m => m.success).length}) for comprehensive fraud detection.
+                {amazonPrices.length >= 2 && ` Amazon price variation: ${amazonPriceVariation.toFixed(1)}% (acceptable range).`}
+              </p>
+            </div>
+          )}
+
+          {comparisonWithSimilarProducts && (
+            <div className={`p-3 rounded-lg border ${comparisonWithSimilarProducts.includes('Suspiciously') || comparisonWithSimilarProducts.includes('Significantly') ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+              <div className={`flex items-center gap-2 ${comparisonWithSimilarProducts.includes('Suspiciously') || comparisonWithSimilarProducts.includes('Significantly') ? 'text-yellow-800' : 'text-green-800'}`}>
+                <ShoppingCart className="h-4 w-4" />
+                <span className="text-sm font-medium">Similar Product Comparison</span>
+              </div>
+              <p className={`text-xs mt-1 ${comparisonWithSimilarProducts.includes('Suspiciously') || comparisonWithSimilarProducts.includes('Significantly') ? 'text-yellow-700' : 'text-green-700'}`}>
+                {comparisonWithSimilarProducts} (analyzed {similarProductPrices.length} similar products)
               </p>
             </div>
           )}
@@ -130,29 +184,48 @@ export const FraudAnalysis = ({
               <div className="text-xs text-muted-foreground">Markets Checked</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-muted/30">
-              <Badge variant={priceAnalysis.suspiciousPricing ? "destructive" : "secondary"}>
-                {priceAnalysis.suspiciousPricing ? "Suspicious" : "Normal"}
+              <Badge variant={priceAnalysis.suspiciousPricing || isSuspiciousAmazonPricing ? "destructive" : "secondary"}>
+                {priceAnalysis.suspiciousPricing || isSuspiciousAmazonPricing ? "Suspicious" : "Normal"}
               </Badge>
               <div className="text-xs text-muted-foreground mt-1">Pricing Pattern</div>
             </div>
           </div>
 
-          {priceAnalysis.prices && priceAnalysis.prices.length > 0 && (
+          {amazonPrices.length >= 2 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold">Price by Marketplace:</h4>
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                Amazon Marketplace Prices:
+                <Badge variant={isSuspiciousAmazonPricing ? "destructive" : "secondary"} className="text-xs">
+                  {amazonPriceVariation.toFixed(1)}% variation
+                </Badge>
+              </h4>
               <div className="space-y-2">
-                {priceAnalysis.prices.map((price, index) => (
+                {amazonPrices.map((price, index) => (
                   <div key={index} className="flex items-center justify-between p-2 rounded border">
                     <div className="flex items-center gap-2">
-                      {price.marketplace === 'amazon' || price.country.includes('Amazon') ? (
-                        <Globe className="h-4 w-4 text-orange-500" />
-                      ) : (
-                        <ShoppingCart className="h-4 w-4 text-blue-500" />
-                      )}
+                      <Globe className="h-4 w-4 text-orange-500" />
                       <span className="text-sm font-medium">{price.country}</span>
-                      {!(price.marketplace === 'amazon' || price.country.includes('Amazon')) && (
-                        <Badge variant="outline" className="text-xs">Other Platform</Badge>
-                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
+                      <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {similarProductPrices.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Similar Products for Comparison:</h4>
+              <div className="space-y-2">
+                {similarProductPrices.map((price, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 rounded border">
+                    <div className="flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium">{price.country}</span>
+                      <Badge variant="outline" className="text-xs">Similar Product</Badge>
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
