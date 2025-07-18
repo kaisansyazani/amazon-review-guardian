@@ -3,7 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-const rapidApiKey = Deno.env.get('RAPIDAPI_KEY') ?? '';
+const rapidApiKey = Deno.env.get('RAPIDAPI_KEY') ?? ''; // SERP API (kept for backup)
+const apifyToken = Deno.env.get('APIFY_TOKEN') ?? '';
 
 const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -12,10 +13,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Function to fetch product details
-async function fetchProductDetails(asin: string) {
+// SERP API Functions (kept as backup - not currently used)
+async function fetchProductDetailsSERP(asin: string) {
   try {
-    console.log(`Fetching product details for ASIN: ${asin}`);
+    console.log(`[SERP] Fetching product details for ASIN: ${asin}`);
     
     const productResponse = await fetch(
       `https://real-time-amazon-data.p.rapidapi.com/product-details?asin=${asin}&country=US`,
@@ -29,21 +30,237 @@ async function fetchProductDetails(asin: string) {
     );
 
     if (!productResponse.ok) {
-      console.error(`Product details API failed: ${productResponse.status} - ${productResponse.statusText}`);
+      console.error(`[SERP] Product details API failed: ${productResponse.status} - ${productResponse.statusText}`);
       return null;
     }
 
     const productData = await productResponse.json();
-    console.log('Product details API response:', JSON.stringify(productData, null, 2));
+    console.log('[SERP] Product details API response:', JSON.stringify(productData, null, 2));
 
     return productData;
   } catch (error) {
-    console.error('Error fetching product details:', error);
+    console.error('[SERP] Error fetching product details:', error);
     return null;
   }
 }
 
-// Function to search for similar products for price comparison
+async function fetchReviewsSERP(asin: string) {
+  let realReviews = [];
+  
+  // Try to fetch from multiple pages to get at least 10 reviews
+  for (let page = 1; page <= 3 && realReviews.length < 10; page++) {
+    try {
+      console.log(`[SERP] Fetching page ${page} of reviews for ASIN: ${asin}`);
+      
+      const reviewsResponse = await fetch(
+        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=MOST_RECENT&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+        {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
+            'x-rapidapi-key': rapidApiKey,
+          },
+        }
+      );
+
+      if (!reviewsResponse.ok) {
+        console.error(`[SERP] API request failed for page ${page}: ${reviewsResponse.status} - ${reviewsResponse.statusText}`);
+        continue;
+      }
+
+      const reviewsData = await reviewsResponse.json();
+      console.log(`[SERP] Page ${page} API response:`, JSON.stringify(reviewsData, null, 2));
+
+      if (reviewsData.data && reviewsData.data.reviews) {
+        const pageReviews = reviewsData.data.reviews.map((review: any, index: number) => ({
+          id: `${page}-${index + 1}`,
+          text: review.review_comment || review.review_text || review.review_body || 'No review text available',
+          rating: review.review_star_rating || review.rating || review.stars || 5,
+          date: review.review_date || review.date || new Date().toISOString().split('T')[0],
+          author: review.review_author || review.reviewer_name || review.author || 'Anonymous',
+          verified: review.is_verified_purchase !== false
+        }));
+        
+        realReviews.push(...pageReviews);
+      }
+    } catch (pageError) {
+      console.error(`[SERP] Error fetching page ${page}:`, pageError);
+      continue;
+    }
+  }
+
+  return realReviews.slice(0, 15);
+}
+
+// New Apify API Functions
+async function fetchProductDetailsApify(productUrl: string) {
+  try {
+    console.log(`[Apify] Fetching product details for URL: ${productUrl}`);
+    
+    const input = {
+      "productUrls": [{ "url": productUrl }],
+      "maxReviews": 0, // Only get product details, no reviews
+      "includeGdprSensitive": false,
+      "scrapeAdvancedReviews": false,
+      "scrapeProductDetails": true,
+      "deduplicateRedirectedAsins": true
+    };
+
+    const response = await fetch('https://api.apify.com/v2/acts/R8WeJwLuzLZ6g4Bkk/runs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apifyToken}`,
+      },
+      body: JSON.stringify({ input }),
+    });
+
+    if (!response.ok) {
+      console.error(`[Apify] Product details API failed: ${response.status} - ${response.statusText}`);
+      return null;
+    }
+
+    const runData = await response.json();
+    console.log('[Apify] Started product details run:', runData.id);
+
+    // Wait for the run to complete
+    await waitForApifyRun(runData.id);
+
+    // Fetch results
+    const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${runData.defaultDatasetId}/items`, {
+      headers: {
+        'Authorization': `Bearer ${apifyToken}`,
+      },
+    });
+
+    if (!resultsResponse.ok) {
+      console.error(`[Apify] Failed to fetch results: ${resultsResponse.status}`);
+      return null;
+    }
+
+    const results = await resultsResponse.json();
+    console.log('[Apify] Product details results:', JSON.stringify(results, null, 2));
+
+    return results[0] || null;
+  } catch (error) {
+    console.error('[Apify] Error fetching product details:', error);
+    return null;
+  }
+}
+
+async function fetchReviewsApify(productUrl: string) {
+  try {
+    console.log(`[Apify] Fetching reviews for URL: ${productUrl}`);
+    
+    const input = {
+      "productUrls": [{ "url": productUrl }],
+      "maxReviews": 100,
+      "includeGdprSensitive": false,
+      "scrapeAdvancedReviews": true,
+      "sort": "helpful",
+      "filterByRatings": ["allStars"],
+      "reviewsUseProductVariantFilter": false,
+      "reviewMediaTypes": [],
+      "scrapeQuickProductReviews": false,
+      "scrapeProductDetails": false,
+      "reviewsAlwaysSaveCategoryData": false,
+      "deduplicateRedirectedAsins": true
+    };
+
+    const response = await fetch('https://api.apify.com/v2/acts/R8WeJwLuzLZ6g4Bkk/runs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apifyToken}`,
+      },
+      body: JSON.stringify({ input }),
+    });
+
+    if (!response.ok) {
+      console.error(`[Apify] Reviews API failed: ${response.status} - ${response.statusText}`);
+      return [];
+    }
+
+    const runData = await response.json();
+    console.log('[Apify] Started reviews run:', runData.id);
+
+    // Wait for the run to complete
+    await waitForApifyRun(runData.id);
+
+    // Fetch results
+    const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${runData.defaultDatasetId}/items`, {
+      headers: {
+        'Authorization': `Bearer ${apifyToken}`,
+      },
+    });
+
+    if (!resultsResponse.ok) {
+      console.error(`[Apify] Failed to fetch review results: ${resultsResponse.status}`);
+      return [];
+    }
+
+    const results = await resultsResponse.json();
+    console.log('[Apify] Reviews results count:', results.length);
+
+    // Convert Apify reviews to our format
+    const formattedReviews = [];
+    
+    for (const item of results) {
+      if (item.reviews && Array.isArray(item.reviews)) {
+        item.reviews.forEach((review: any, index: number) => {
+          formattedReviews.push({
+            id: `apify-${index + 1}`,
+            text: review.text || review.content || review.reviewText || 'No review text available',
+            rating: review.rating || review.stars || 5,
+            date: review.date || new Date().toISOString().split('T')[0],
+            author: review.author || review.reviewerName || 'Anonymous',
+            verified: review.verified || review.verifiedPurchase || false
+          });
+        });
+      }
+    }
+
+    return formattedReviews.slice(0, 15);
+  } catch (error) {
+    console.error('[Apify] Error fetching reviews:', error);
+    return [];
+  }
+}
+
+async function waitForApifyRun(runId: string, maxWaitTime = 120000) {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitTime) {
+    try {
+      const response = await fetch(`https://api.apify.com/v2/acts/runs/${runId}`, {
+        headers: {
+          'Authorization': `Bearer ${apifyToken}`,
+        },
+      });
+
+      if (response.ok) {
+        const runData = await response.json();
+        if (runData.status === 'SUCCEEDED') {
+          console.log(`[Apify] Run ${runId} completed successfully`);
+          return true;
+        } else if (runData.status === 'FAILED') {
+          console.error(`[Apify] Run ${runId} failed`);
+          return false;
+        }
+      }
+
+      // Wait 3 seconds before checking again
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    } catch (error) {
+      console.error(`[Apify] Error checking run status:`, error);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+  }
+
+  console.warn(`[Apify] Run ${runId} timed out after ${maxWaitTime}ms`);
+  return false;
+}
+
 async function searchSimilarProducts(productTitle: string, category: string) {
   try {
     console.log(`Searching for similar products: ${productTitle}`);
@@ -84,7 +301,6 @@ async function searchSimilarProducts(productTitle: string, category: string) {
   }
 }
 
-// Function to fetch prices from multiple countries/marketplaces
 async function fetchMultiMarketplacePrices(asin: string) {
   const countries = ['US', 'UK', 'DE', 'CA', 'FR'];
   const marketplaceData = [];
@@ -144,7 +360,6 @@ async function fetchMultiMarketplacePrices(asin: string) {
   return marketplaceData;
 }
 
-// Enhanced function to analyze pricing data with cross-marketplace comparison
 async function analyzePricing(productData: any, similarProducts: any[], marketplacePrices: any[]) {
   console.log('Analyzing pricing with cross-marketplace and similar product data');
   
@@ -152,8 +367,8 @@ async function analyzePricing(productData: any, similarProducts: any[], marketpl
   const marketplaceAnalysis = [];
   
   // Add original product price
-  if (productData?.data?.product_price) {
-    const price = parseFloat(productData.data.product_price.toString().replace(/[^0-9.]/g, ''));
+  if (productData?.data?.product_price || productData?.price) {
+    const price = parseFloat((productData?.data?.product_price || productData?.price).toString().replace(/[^0-9.]/g, ''));
     allPrices.push(price);
   }
 
@@ -231,9 +446,9 @@ async function analyzePricing(productData: any, similarProducts: any[], marketpl
   };
 }
 
-// Function to extract product information
+// Function to extract product information (updated for Apify format)
 function extractProductInfo(productData: any) {
-  if (!productData?.data) {
+  if (!productData) {
     return {
       productName: "Amazon Product",
       category: "Unknown",
@@ -242,13 +457,14 @@ function extractProductInfo(productData: any) {
     };
   }
 
-  const product = productData.data;
+  // Handle both SERP API and Apify formats
+  const product = productData.data || productData;
   
   return {
-    productName: product.product_title || product.title || product.product_name || "Amazon Product",
+    productName: product.product_title || product.title || product.name || "Amazon Product",
     category: product.product_category || product.category || "Unknown",
     brand: product.brand || product.product_brand || "Unknown",
-    availability: product.product_availability || product.availability || "Unknown",
+    availability: product.product_availability || product.availability || "Available",
     images: product.product_photos || product.images || [],
     rating: product.product_star_rating || product.rating || null,
     totalRatings: product.product_num_ratings || product.total_ratings || null
@@ -270,8 +486,8 @@ serve(async (req) => {
       });
     }
 
-    if (!rapidApiKey) {
-      return new Response(JSON.stringify({ error: 'RapidAPI key not configured' }), {
+    if (!apifyToken) {
+      return new Response(JSON.stringify({ error: 'Apify token not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -292,11 +508,11 @@ serve(async (req) => {
 
     console.log('Extracted ASIN:', asin);
 
-    // Fetch product details, reviews, and enhanced price analysis simultaneously
+    // Use Apify API for primary data fetching
     const [productDetailsData, reviewsResult, marketplacePricesResult] = await Promise.allSettled([
-      fetchProductDetails(asin),
-      fetchReviews(asin),
-      fetchMultiMarketplacePrices(asin)
+      fetchProductDetailsApify(url),
+      fetchReviewsApify(url),
+      fetchMultiMarketplacePrices(asin) // Still using SERP for marketplace prices
     ]);
 
     // Extract product information
@@ -306,7 +522,7 @@ serve(async (req) => {
     // Get marketplace prices
     const marketplacePrices = marketplacePricesResult.status === 'fulfilled' ? marketplacePricesResult.value : [];
     
-    // Search for similar products for price comparison
+    // Search for similar products for price comparison (using SERP API)
     const similarProducts = await searchSimilarProducts(productInfo.productName, productInfo.category);
     
     // Enhanced price analysis with cross-marketplace and similar product comparison
@@ -358,7 +574,7 @@ serve(async (req) => {
           sadness: 0
         },
         insights: [
-          'No reviews available for analysis',
+          'No reviews available for analysis (using Apify API)',
           'This appears to be a new or pre-order product',
           `Product availability: ${productInfo.availability}`,
           `Current price: $${priceAnalysis.averagePrice > 0 ? priceAnalysis.averagePrice.toFixed(2) : 'Not available'}`,
@@ -555,7 +771,7 @@ serve(async (req) => {
     const maliciousCount = analyzedReviews.filter(r => r.classification === 'malicious').length;
     
     const insights = [
-      `${Math.round((genuineCount / totalReviews) * 100)}% of reviews appear genuine`,
+      `${Math.round((genuineCount / totalReviews) * 100)}% of reviews appear genuine (via Apify API)`,
       `${sentimentDistribution.positive}% positive sentiment detected`,
       `Average sentiment score: ${avgSentiment.toFixed(2)}`,
       `${botCount} potential bot reviews identified`,
@@ -609,7 +825,7 @@ serve(async (req) => {
         brand: productInfo.brand,
         availability: productInfo.availability
       },
-      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} shows ${overallTrust}% appear genuine. Cross-marketplace price analysis across ${priceAnalysis.marketplacesChecked} markets reveals ${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns' : 'consistent pricing'}. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
+      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} (via Apify API) shows ${overallTrust}% appear genuine. Cross-marketplace price analysis across ${priceAnalysis.marketplacesChecked} markets reveals ${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns' : 'consistent pricing'}. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
       summaryPositive: positiveCount > 0 ? "Customers appreciate product quality and performance based on verified reviews." : "Limited positive feedback detected.",
       summaryNegative: negativeCount > 0 ? "Some customers report issues with quality or expectations not being met." : "Few negative concerns identified.",
       recommendation: overallTrust > 70 && priceAnalysis.marketplacesChecked >= 3 && !priceAnalysis.suspiciousPricing ? 
@@ -656,53 +872,3 @@ serve(async (req) => {
     });
   }
 });
-
-// Function to fetch reviews (extracted from existing code)
-async function fetchReviews(asin: string) {
-  let realReviews = [];
-  
-  // Try to fetch from multiple pages to get at least 10 reviews
-  for (let page = 1; page <= 3 && realReviews.length < 10; page++) {
-    try {
-      console.log(`Fetching page ${page} of reviews for ASIN: ${asin}`);
-      
-      const reviewsResponse = await fetch(
-        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=MOST_RECENT&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
-        {
-          method: 'GET',
-          headers: {
-            'x-rapidapi-host': 'real-time-amazon-data.p.rapidapi.com',
-            'x-rapidapi-key': rapidApiKey,
-          },
-        }
-      );
-
-      if (!reviewsResponse.ok) {
-        console.error(`API request failed for page ${page}: ${reviewsResponse.status} - ${reviewsResponse.statusText}`);
-        continue;
-      }
-
-      const reviewsData = await reviewsResponse.json();
-      console.log(`Page ${page} API response:`, JSON.stringify(reviewsData, null, 2));
-
-      if (reviewsData.data && reviewsData.data.reviews) {
-        const pageReviews = reviewsData.data.reviews.map((review: any, index: number) => ({
-          id: `${page}-${index + 1}`,
-          text: review.review_comment || review.review_text || review.review_body || 'No review text available',
-          rating: review.review_star_rating || review.rating || review.stars || 5,
-          date: review.review_date || review.date || new Date().toISOString().split('T')[0],
-          author: review.review_author || review.reviewer_name || review.author || 'Anonymous',
-          verified: review.is_verified_purchase !== false
-        }));
-        
-        realReviews.push(...pageReviews);
-      }
-    } catch (pageError) {
-      console.error(`Error fetching page ${page}:`, pageError);
-      continue;
-    }
-  }
-
-  // Limit to first 15 reviews for processing
-  return realReviews.slice(0, 15);
-}
