@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ResultsDashboard } from "@/components/ResultsDashboard";
 import { Header } from "@/components/Header";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface AnalysisResult {
@@ -104,47 +104,103 @@ const IndexPage = () => {
   }, [productUrl]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       <Header />
-      <div className="container mx-auto py-12 px-4">
-        <div className="space-y-6">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold">Amazon Product Review Analysis</h1>
-            <p className="text-muted-foreground">
-              Enter an Amazon product URL to analyze its reviews.
+      
+      <div className="container mx-auto py-16 px-4">
+        <div className="space-y-12">
+          {/* Hero Section */}
+          <div className="text-center space-y-6 max-w-4xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium border border-primary/20">
+              <Sparkles className="h-4 w-4" />
+              AI-Powered Review Analysis
+            </div>
+            
+            <h1 className="text-5xl md:text-6xl font-bold bg-gradient-primary bg-clip-text text-transparent leading-tight">
+              Uncover the Truth in 
+              <br />
+              Product Reviews
+            </h1>
+            
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Advanced AI analysis to detect fake reviews, analyze sentiment, and provide 
+              comprehensive insights about Amazon products.
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-4">
-            <Input
-              type="url"
-              placeholder="https://www.amazon.com/dp/B07Y899FF9"
-              value={productUrl}
-              onChange={(e) => setProductUrl(e.target.value)}
-            />
-            <Button onClick={analyzeProduct} disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                "Analyze Product"
-              )}
-            </Button>
+          {/* Search Section */}
+          <div className="max-w-2xl mx-auto">
+            <Card className="p-8 shadow-analysis border-0 bg-card/50 backdrop-blur-sm">
+              <div className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    type="url"
+                    placeholder="Paste Amazon product URL here..."
+                    value={productUrl}
+                    onChange={(e) => setProductUrl(e.target.value)}
+                    className="pl-12 h-14 text-lg border-2 border-border/50 focus:border-primary transition-colors"
+                  />
+                </div>
+                
+                <Button 
+                  onClick={analyzeProduct} 
+                  disabled={isLoading || !productUrl.trim()}
+                  className="w-full h-12 text-lg bg-gradient-primary hover:opacity-90 transition-opacity shadow-lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Analyzing Reviews...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-5 w-5" />
+                      Analyze Product Reviews
+                    </>
+                  )}
+                </Button>
+              </div>
+            </Card>
           </div>
 
-          {results ? (
-            <ResultsDashboard results={results} onReset={resetAnalysis} />
-          ) : (
-            <Card className="text-center p-6 text-muted-foreground">
-              {isLoading ? (
-                "Analyzing product reviews, please wait..."
-              ) : (
-                "Enter a product URL to begin analysis."
-              )}
-            </Card>
-          )}
+          {/* Results or Placeholder */}
+          <div className="max-w-7xl mx-auto">
+            {results ? (
+              <div className="animate-slide-up">
+                <ResultsDashboard results={results} onReset={resetAnalysis} />
+              </div>
+            ) : (
+              <Card className="text-center p-12 shadow-card-custom bg-card/30 backdrop-blur-sm border border-border/50">
+                {isLoading ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-center">
+                      <div className="relative">
+                        <div className="w-16 h-16 border-4 border-primary/20 rounded-full"></div>
+                        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold">Analyzing Product Reviews</h3>
+                      <p className="text-muted-foreground">This may take a few moments while we process the data...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="w-24 h-24 mx-auto bg-gradient-primary rounded-full flex items-center justify-center">
+                      <Search className="h-12 w-12 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-semibold">Ready to Analyze</h3>
+                      <p className="text-muted-foreground max-w-md mx-auto">
+                        Enter an Amazon product URL above to get started with comprehensive review analysis.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </div>
