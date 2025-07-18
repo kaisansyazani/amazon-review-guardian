@@ -163,7 +163,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                   <Star
                     key={i}
                     className={`h-4 w-4 ${
-                      i < review.rating ? 'fill-warning text-warning' : 'text-muted-foreground'
+                      i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'
                     }`}
                   />
                 ))}

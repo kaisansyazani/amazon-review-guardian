@@ -17,10 +17,42 @@ interface ResultsDashboardProps {
 }
 
 export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) => {
+  // Calculate adjusted trust score based on verified purchases and confidence boosts
+  const calculateAdjustedTrustScore = () => {
+    if (results.analyzedReviews.length === 0) return results.overallTrust;
+    
+    let totalAdjustedConfidence = 0;
+    let verifiedPurchaseBonus = 0;
+    
+    results.analyzedReviews.forEach(review => {
+      let adjustedConfidence = review.confidence;
+      
+      // Apply verified purchase boost
+      if (review.isVerifiedPurchase) {
+        adjustedConfidence = Math.min(100, adjustedConfidence + 15);
+        verifiedPurchaseBonus += 5; // Additional overall trust bonus
+      }
+      
+      totalAdjustedConfidence += adjustedConfidence;
+    });
+    
+    const averageAdjustedConfidence = totalAdjustedConfidence / results.analyzedReviews.length;
+    const verifiedPurchaseCount = results.analyzedReviews.filter(r => r.isVerifiedPurchase).length;
+    const verifiedPurchaseRatio = verifiedPurchaseCount / results.analyzedReviews.length;
+    
+    // Calculate final trust score with bonuses
+    let finalTrustScore = averageAdjustedConfidence + (verifiedPurchaseRatio * 10);
+    
+    return Math.min(100, Math.round(finalTrustScore));
+  };
+
+  const adjustedTrustScore = calculateAdjustedTrustScore();
+  
   const genuineCount = results.analyzedReviews.filter(r => r.classification === 'genuine').length;
   const paidCount = results.analyzedReviews.filter(r => r.classification === 'paid').length;
   const botCount = results.analyzedReviews.filter(r => r.classification === 'bot').length;
   const maliciousCount = results.analyzedReviews.filter(r => r.classification === 'malicious').length;
+  const verifiedPurchaseCount = results.analyzedReviews.filter(r => r.isVerifiedPurchase).length;
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -32,7 +64,7 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
         </Button>
       </div>
 
-      <TrustScore score={results.overallTrust} totalReviews={results.totalReviews} />
+      <TrustScore score={adjustedTrustScore} totalReviews={results.totalReviews} />
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -66,6 +98,17 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
                     <div className="text-center p-4 rounded-lg bg-destructive/10 border border-destructive/20">
                       <div className="text-2xl font-bold text-destructive">{maliciousCount}</div>
                       <div className="text-sm text-muted-foreground">Malicious</div>
+                    </div>
+                  </div>
+                  
+                  {/* Verified Purchase Summary */}
+                  <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-200">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{verifiedPurchaseCount}</div>
+                      <div className="text-sm text-green-700">Verified Purchases</div>
+                      <div className="text-xs text-green-600 mt-1">
+                        {Math.round((verifiedPurchaseCount / results.totalReviews) * 100)}% of total reviews
+                      </div>
                     </div>
                   </div>
                 </CardContent>
