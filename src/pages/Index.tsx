@@ -22,6 +22,9 @@ export interface AnalysisResult {
     explanation: string;
     sentiment?: string;
     emotionScores?: Record<string, number>;
+    hasImage?: boolean;
+    hasVideo?: boolean;
+    isVerifiedPurchase?: boolean;
   }>;
   insights: string[];
   productName: string;
