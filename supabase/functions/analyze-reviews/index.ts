@@ -92,7 +92,7 @@ async function fetchReviewsSERP(asin: string) {
   return realReviews.slice(0, 15);
 }
 
-// Fixed Apify API Functions
+// Corrected Apify API Functions
 async function fetchProductDetailsApify(productUrl: string) {
   try {
     console.log(`[Apify] Fetching product details for URL: ${productUrl}`);
@@ -102,18 +102,19 @@ async function fetchProductDetailsApify(productUrl: string) {
       return null;
     }
     
-    // Fixed input format - productUrls should be an array of objects with url property
+    // Correct input format using junglee/amazon-reviews-scraper
     const input = {
-      "productUrls": [productUrl], // Changed: pass URL directly as string in array
+      "productUrls": [
+        {
+          "url": productUrl
+        }
+      ],
       "maxReviews": 0, // Only get product details, no reviews
-      "includeGdprSensitive": false,
-      "scrapeAdvancedReviews": false,
-      "scrapeProductDetails": true,
-      "deduplicateRedirectedAsins": true
+      "filterByRatings": ["allStars"]
     };
 
-    console.log('[Apify] Starting product details scraping run...');
-    const response = await fetch('https://api.apify.com/v2/acts/R8WeJwLuzLZ6g4Bkk/runs', {
+    console.log('[Apify] Starting product details scraping with junglee/amazon-reviews-scraper...');
+    const response = await fetch('https://api.apify.com/v2/acts/junglee~amazon-reviews-scraper/runs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -169,24 +170,19 @@ async function fetchReviewsApify(productUrl: string) {
       return [];
     }
     
-    // Fixed input format - productUrls should be an array of URLs as strings
+    // Correct input format using junglee/amazon-reviews-scraper
     const input = {
-      "productUrls": [productUrl], // Changed: pass URL directly as string in array
-      "maxReviews": 50,
-      "includeGdprSensitive": false,
-      "scrapeAdvancedReviews": true,
-      "sort": "helpful",
-      "filterByRatings": ["allStars"],
-      "reviewsUseProductVariantFilter": false,
-      "reviewMediaTypes": [],
-      "scrapeQuickProductReviews": false,
-      "scrapeProductDetails": false,
-      "reviewsAlwaysSaveCategoryData": false,
-      "deduplicateRedirectedAsins": true
+      "productUrls": [
+        {
+          "url": productUrl
+        }
+      ],
+      "maxReviews": 100,
+      "filterByRatings": ["allStars"]
     };
 
-    console.log('[Apify] Starting reviews scraping run...');
-    const response = await fetch('https://api.apify.com/v2/acts/R8WeJwLuzLZ6g4Bkk/runs', {
+    console.log('[Apify] Starting reviews scraping with junglee/amazon-reviews-scraper...');
+    const response = await fetch('https://api.apify.com/v2/acts/junglee~amazon-reviews-scraper/runs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -230,14 +226,17 @@ async function fetchReviewsApify(productUrl: string) {
     const formattedReviews = [];
     
     for (const item of results) {
-      if (item.reviews && Array.isArray(item.reviews)) {
-        item.reviews.forEach((review: any, index: number) => {
+      // Handle both direct reviews array and nested structure
+      const reviewsArray = item.reviews || (item.data && item.data.reviews) || [];
+      
+      if (Array.isArray(reviewsArray)) {
+        reviewsArray.forEach((review: any, index: number) => {
           formattedReviews.push({
-            id: `apify-${index + 1}`,
-            text: review.text || review.content || review.reviewText || 'No review text available',
-            rating: review.rating || review.stars || 5,
-            date: review.date || new Date().toISOString().split('T')[0],
-            author: review.author || review.reviewerName || 'Anonymous',
+            id: `apify-${formattedReviews.length + 1}`,
+            text: review.text || review.content || review.reviewText || review.review || 'No review text available',
+            rating: review.rating || review.stars || review.star_rating || 5,
+            date: review.date || review.reviewDate || new Date().toISOString().split('T')[0],
+            author: review.author || review.reviewerName || review.reviewer || 'Anonymous',
             verified: review.verified || review.verifiedPurchase || false
           });
         });
@@ -563,7 +562,7 @@ serve(async (req) => {
       if (!productDetailsData) {
         productDetailsData = await fetchProductDetailsSERP(asin);
         if (productDetailsData) {
-          dataSource = 'SERP';
+          dataSource = dataSource === 'Apify' ? 'Apify+SERP' : 'SERP';
           console.log('[Strategy] Using SERP for product details');
         }
       }
@@ -571,7 +570,7 @@ serve(async (req) => {
       if (reviewsResult.length === 0) {
         reviewsResult = await fetchReviewsSERP(asin);
         if (reviewsResult.length > 0) {
-          dataSource = 'SERP';
+          dataSource = dataSource === 'Apify' ? 'Apify+SERP' : 'SERP';
           console.log('[Strategy] Using SERP for reviews');
         }
       }
