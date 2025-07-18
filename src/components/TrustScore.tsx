@@ -9,6 +9,9 @@ interface TrustScoreProps {
 }
 
 export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
+  // Round score to 1 decimal place
+  const roundedScore = Math.round(score * 10) / 10;
+  
   const getScoreColor = (score: number) => {
     if (score >= 75) return "text-trust-high border-trust-high";
     if (score >= 50) return "text-trust-medium border-trust-medium";
@@ -43,7 +46,7 @@ export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
     <Card className="shadow-analysis border-0 bg-gradient-to-br from-card to-card/50 backdrop-blur-sm">
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2">
-          {getScoreIcon(score)}
+          {getScoreIcon(roundedScore)}
           Overall Trust Score
         </CardTitle>
       </CardHeader>
@@ -52,8 +55,8 @@ export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
           <div className="relative">
             <div className="w-32 h-32 rounded-full bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center shadow-inner">
               <div className="text-center">
-                <div className={`text-4xl font-bold ${getScoreColor(score).split(' ')[0]}`}>
-                  {score}%
+                <div className={`text-4xl font-bold ${getScoreColor(roundedScore).split(' ')[0]}`}>
+                  {roundedScore.toFixed(1)}%
                 </div>
                 <div className="text-sm text-muted-foreground font-medium">
                   Trust Score
@@ -61,30 +64,30 @@ export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
               </div>
             </div>
             <div className="absolute -top-2 -right-2 p-2 bg-background rounded-full shadow-lg border">
-              {getScoreIcon(score)}
+              {getScoreIcon(roundedScore)}
             </div>
           </div>
           
           <div className="flex-1 space-y-4">
             <div>
-              <h3 className={`text-2xl font-bold mb-2 ${getScoreColor(score).split(' ')[0]}`}>
-                {getScoreLabel(score)}
+              <h3 className={`text-2xl font-bold mb-2 ${getScoreColor(roundedScore).split(' ')[0]}`}>
+                {getScoreLabel(roundedScore)}
               </h3>
               <p className="text-muted-foreground leading-relaxed">
-                {getScoreDescription(score)}
+                {getScoreDescription(roundedScore)}
               </p>
             </div>
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Trust Level</span>
-                <span className="font-medium">{score}%</span>
+                <span className="font-medium">{roundedScore.toFixed(1)}%</span>
               </div>
               <div className="relative">
-                <Progress value={score} className="h-3" />
+                <Progress value={roundedScore} className="h-3" />
                 <div 
-                  className={`absolute top-0 left-0 h-3 rounded-full transition-all ${getProgressColor(score)}`}
-                  style={{ width: `${score}%` }}
+                  className={`absolute top-0 left-0 h-3 rounded-full transition-all ${getProgressColor(roundedScore)}`}
+                  style={{ width: `${roundedScore}%` }}
                 />
               </div>
             </div>
@@ -95,11 +98,11 @@ export const TrustScore = ({ score, totalReviews }: TrustScoreProps) => {
                 <div className="text-xs text-muted-foreground">Reviews</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-primary">{Math.round((score / 100) * totalReviews)}</div>
+                <div className="text-lg font-bold text-primary">{Math.round((roundedScore / 100) * totalReviews)}</div>
                 <div className="text-xs text-muted-foreground">Genuine</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-destructive">{totalReviews - Math.round((score / 100) * totalReviews)}</div>
+                <div className="text-lg font-bold text-destructive">{totalReviews - Math.round((roundedScore / 100) * totalReviews)}</div>
                 <div className="text-xs text-muted-foreground">Suspicious</div>
               </div>
             </div>
