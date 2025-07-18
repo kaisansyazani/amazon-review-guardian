@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,15 +72,26 @@ export default function Library() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
+      console.log('Attempting to delete analysis result with ID:', id);
+      
       const { error } = await supabase
         .from('analysis_results')
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase delete error:', error);
+        throw error;
+      }
 
-      // Remove from local state
-      setResults(prev => prev.filter(result => result.id !== id));
+      console.log('Successfully deleted from database, updating local state');
+      
+      // Remove from local state only after successful database deletion
+      setResults(prev => {
+        const updatedResults = prev.filter(result => result.id !== id);
+        console.log('Updated local results count:', updatedResults.length);
+        return updatedResults;
+      });
       
       toast({
         title: "Success",
@@ -91,7 +101,7 @@ export default function Library() {
       console.error('Error deleting result:', error);
       toast({
         title: "Error",
-        description: "Failed to delete analysis result",
+        description: "Failed to delete analysis result. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -211,7 +221,10 @@ export default function Library() {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handleDelete(result.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(result.id);
+                              }}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Delete
