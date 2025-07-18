@@ -92,7 +92,7 @@ async function fetchReviewsSERP(asin: string) {
   return realReviews.slice(0, 15);
 }
 
-// Improved Apify API Functions
+// Fixed Apify API Functions
 async function fetchProductDetailsApify(productUrl: string) {
   try {
     console.log(`[Apify] Fetching product details for URL: ${productUrl}`);
@@ -102,8 +102,9 @@ async function fetchProductDetailsApify(productUrl: string) {
       return null;
     }
     
+    // Fixed input format - productUrls should be an array of objects with url property
     const input = {
-      "productUrls": [{ "url": productUrl }],
+      "productUrls": [productUrl], // Changed: pass URL directly as string in array
       "maxReviews": 0, // Only get product details, no reviews
       "includeGdprSensitive": false,
       "scrapeAdvancedReviews": false,
@@ -168,8 +169,9 @@ async function fetchReviewsApify(productUrl: string) {
       return [];
     }
     
+    // Fixed input format - productUrls should be an array of URLs as strings
     const input = {
-      "productUrls": [{ "url": productUrl }],
+      "productUrls": [productUrl], // Changed: pass URL directly as string in array
       "maxReviews": 50,
       "includeGdprSensitive": false,
       "scrapeAdvancedReviews": true,
