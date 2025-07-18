@@ -1,73 +1,242 @@
-# Welcome to your Lovable project
 
-## Project info
+# Amazon Review Authenticator
 
-**URL**: https://lovable.dev/projects/71885f66-d109-472e-9e23-b3ca33bc9c52
+A comprehensive AI-powered tool for analyzing Amazon product reviews to detect fake, paid, bot-generated, and malicious reviews. This application provides detailed trust analysis, sentiment evaluation, and fraud detection to help users make informed purchasing decisions.
 
-## How can I edit this code?
+## 🚀 Features
 
-There are several ways of editing your application.
+### Core Analysis
+- **Review Classification**: Automatically categorizes reviews as genuine, paid, bot-generated, or malicious
+- **Trust Scoring**: Generates overall trust scores based on review authenticity
+- **Sentiment Analysis**: Comprehensive sentiment and emotion analysis
+- **Fraud Detection**: Advanced fraud risk assessment and price analysis
+- **Verified Purchase Analysis**: Special weighting for Amazon verified purchases
 
-**Use Lovable**
+### User Interface
+- **Modern Design**: Clean, responsive interface with dark/light theme support
+- **Interactive Dashboard**: Comprehensive results visualization with tabs and charts
+- **Library System**: Save and manage analysis results for future reference
+- **Q&A Training**: Interactive learning module to understand review authenticity
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/71885f66-d109-472e-9e23-b3ca33bc9c52) and start prompting.
+## 🛠 Technology Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend**: React 18, TypeScript, Vite
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **Backend**: Supabase (Database, Authentication, Edge Functions)
+- **APIs**: RapidAPI, Apify for web scraping
+- **State Management**: React Query (TanStack Query)
+- **Routing**: React Router DOM
+- **Charts**: Recharts
+- **Icons**: Lucide React
 
-**Use your preferred IDE**
+## 📋 Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js 18+ and npm
+- Supabase account
+- RapidAPI account and API key
+- Apify account and API token
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🚀 Quick Start
 
-Follow these steps:
+### 1. Clone and Install
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+```bash
+git clone <repository-url>
+cd amazon-review-authenticator
+npm install
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 2. Environment Setup
 
-# Step 3: Install the necessary dependencies.
-npm i
+The application uses Supabase secrets for API keys. You'll need to configure these in your Supabase dashboard:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+**Required Secrets:**
+- `RAPIDAPI_KEY`: Your RapidAPI key for Amazon data scraping
+- `APIFY_TOKEN`: Your Apify token for web scraping services
+
+### 3. Supabase Configuration
+
+1. Create a new Supabase project
+2. Update `src/integrations/supabase/client.ts` with your project credentials
+3. Run the database migrations (see Database Setup section)
+4. Configure the required secrets in Supabase Dashboard → Settings → Functions
+
+### 4. Development Server
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🗄 Database Setup
 
-**Use GitHub Codespaces**
+The application uses three main tables:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### `analysis_results`
+Stores complete analysis results for Amazon products
+- Product information (ASIN, name)
+- Review analysis data
+- Trust scores and insights
+- Sentiment analysis results
+- AI-generated summaries
 
-## What technologies are used for this project?
+### `qa_questions`
+Contains training questions for the Q&A learning module
+- Multiple choice questions about review authenticity
+- Difficulty levels and categories
+- Explanations for correct answers
 
-This project is built with:
+### `quiz_sessions`
+Tracks user progress in Q&A training
+- User quiz sessions and scores
+- Questions answered and performance tracking
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Row Level Security (RLS)
+- `analysis_results`: Publicly readable and deletable
+- `qa_questions`: Publicly readable only
+- `quiz_sessions`: User-specific access with authentication
 
-## How can I deploy this project?
+## 🔑 API Configuration
 
-Simply open [Lovable](https://lovable.dev/projects/71885f66-d109-472e-9e23-b3ca33bc9c52) and click on Share -> Publish.
+### RapidAPI Setup
+1. Sign up at [RapidAPI](https://rapidapi.com/)
+2. Subscribe to Amazon data scraping APIs
+3. Get your API key from the dashboard
+4. Add the key as `RAPIDAPI_KEY` secret in Supabase
 
-## Can I connect a custom domain to my Lovable project?
+### Apify Setup
+1. Create account at [Apify](https://apify.com/)
+2. Get your API token from account settings
+3. Add the token as `APIFY_TOKEN` secret in Supabase
 
-Yes, you can!
+## 📱 Usage
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Analyzing Products
+1. Enter an Amazon product URL or ASIN on the homepage
+2. Click "Authenticate Reviews" to start analysis
+3. Wait for the AI to process and analyze reviews
+4. View comprehensive results in the dashboard
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### Review Analysis Dashboard
+- **Overview**: Summary statistics and key insights
+- **Fraud Analysis**: Risk assessment and price comparisons
+- **Sentiment**: Emotion analysis and sentiment distribution
+- **Reviews**: Individual review classifications and explanations
+
+### Library Management
+- All analysis results are automatically saved
+- Access previous analyses from the Library page
+- Delete unwanted results
+- View detailed analysis for any saved product
+
+### Q&A Training
+- Learn to identify fake reviews through interactive questions
+- Multiple difficulty levels and categories
+- Track your progress with scoring system
+- Detailed explanations for each answer
+
+## 🏗 Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── ui/             # shadcn/ui components
+│   ├── AnalysisProgress.tsx
+│   ├── DetailedAnalysisView.tsx
+│   ├── ResultsDashboard.tsx
+│   └── ...
+├── pages/              # Route components
+│   ├── Index.tsx       # Homepage
+│   ├── Library.tsx     # Saved results
+│   ├── QATraining.tsx  # Learning module
+│   └── HowItWorks.tsx  # Information page
+├── integrations/       # Supabase integration
+│   └── supabase/
+├── types/              # TypeScript definitions
+└── lib/               # Utility functions
+```
+
+## 🔧 Development
+
+### Building for Production
+```bash
+npm run build
+```
+
+### Type Checking
+```bash
+npm run type-check
+```
+
+### Linting
+```bash
+npm run lint
+```
+
+## 🚀 Deployment
+
+The easiest way to deploy is through Lovable's built-in deployment:
+
+1. Open your project in Lovable
+2. Go to Share → Publish
+3. Your app will be deployed with a custom URL
+
+### Custom Domain
+Connect a custom domain through Project → Settings → Domains in Lovable.
+
+## 🔒 Security & Privacy
+
+- All API keys are stored securely in Supabase secrets
+- Row Level Security (RLS) policies protect user data
+- No personal information is stored or transmitted
+- Analysis results can be deleted by users at any time
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📝 API Endpoints
+
+### Edge Functions
+- `/analyze-reviews`: Main analysis endpoint that processes Amazon URLs
+  - Handles web scraping via Apify
+  - Performs AI analysis on review data
+  - Stores results in database
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Analysis not working:**
+- Check that RAPIDAPI_KEY and APIFY_TOKEN are configured
+- Verify the Amazon URL format is correct
+- Check Supabase function logs for errors
+
+**Database errors:**
+- Ensure all migrations have been run
+- Check RLS policies are properly configured
+- Verify Supabase connection settings
+
+**Build errors:**
+- Run `npm install` to ensure all dependencies are installed
+- Check TypeScript errors with `npm run type-check`
+- Verify all imports and file paths are correct
+
+### Debug Mode
+Add console.log statements to track issues - they're automatically available in the browser console and Supabase function logs.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Lovable](https://lovable.dev) - AI-powered development platform
+- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- Icons from [Lucide React](https://lucide.dev/)
+- Powered by [Supabase](https://supabase.com/) backend services
