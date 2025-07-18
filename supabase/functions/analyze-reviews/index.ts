@@ -53,7 +53,7 @@ async function fetchReviewsSERP(asin: string) {
       console.log(`[SERP] Fetching page ${page} of reviews for ASIN: ${asin}`);
       
       const reviewsResponse = await fetch(
-        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=MOST_RECENT&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`,
+        `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=${page}&sort_by=MOST_RECENT&star_rating=ALL&verified_purchases_only=true&images_or_videos_only=true&current_format_only=false`,
         {
           method: 'GET',
           headers: {
