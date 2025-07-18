@@ -2,7 +2,7 @@
 import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video, X, ShieldCheck } from "lucide-react";
+import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video, X, ShieldCheck, ShieldX } from "lucide-react";
 
 interface ReviewCardProps {
   review: Review;
@@ -116,10 +116,15 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 {/* Verified Purchase badge - most prominent */}
-                {review.isVerifiedPurchase && (
+                {review.isVerifiedPurchase ? (
                   <Badge variant="outline" className="gap-1 text-xs bg-green-50 text-green-800 border-green-300 hover:bg-green-100 font-semibold">
                     <ShieldCheck className="h-3 w-3 fill-green-600 text-green-600" />
                     Verified Purchase
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1 text-xs bg-red-50 text-red-800 border-red-300 hover:bg-red-100 font-semibold">
+                    <ShieldX className="h-3 w-3 fill-red-600 text-red-600" />
+                    Not Verified
                   </Badge>
                 )}
                 <Badge variant={getClassificationColor(review.classification) as any} className="gap-1">
