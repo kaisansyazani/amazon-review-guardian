@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -111,7 +110,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             startUrls: [{ url: amazonUrl }],
-            maxReviews: 50,
+            maxReviews: 15,
             proxy: {
               useApifyProxy: true
             }
@@ -139,7 +138,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Generate demo data for analysis
+    // Generate demo data for analysis (now with 15 reviews)
     console.log('Generating demo data for analysis');
     
     const mockReviews: Review[] = [
@@ -192,31 +191,160 @@ Deno.serve(async (req) => {
         hasImage: false,
         hasVideo: false,
         verified: true
+      },
+      {
+        id: '6',
+        date: '2024-01-03',
+        text: 'Perfect fit and very comfortable. Love the design and quality.',
+        author: 'Emily R.',
+        rating: '5',
+        hasImage: true,
+        hasVideo: false,
+        verified: true
+      },
+      {
+        id: '7',
+        date: '2024-01-01',
+        text: 'Okay product but arrived damaged. Had to return.',
+        author: 'David L.',
+        rating: '2',
+        hasImage: false,
+        hasVideo: false,
+        verified: false
+      },
+      {
+        id: '8',
+        date: '2023-12-28',
+        text: 'Excellent sandals! Very comfortable for walking long distances.',
+        author: 'Jessica P.',
+        rating: '4',
+        hasImage: false,
+        hasVideo: true,
+        verified: true
+      },
+      {
+        id: '9',
+        date: '2023-12-25',
+        text: 'These are fake! Nothing like the real product. Waste of money.',
+        author: 'Anonymous User',
+        rating: '1',
+        hasImage: false,
+        hasVideo: false,
+        verified: false
+      },
+      {
+        id: '10',
+        date: '2023-12-22',
+        text: 'Good quality sandals. Worth the price and very durable.',
+        author: 'Mark T.',
+        rating: '4',
+        hasImage: true,
+        hasVideo: false,
+        verified: true
+      },
+      {
+        id: '11',
+        date: '2023-12-20',
+        text: 'Average product. Nothing special but does the job.',
+        author: 'Karen S.',
+        rating: '3',
+        hasImage: false,
+        hasVideo: false,
+        verified: false
+      },
+      {
+        id: '12',
+        date: '2023-12-18',
+        text: 'Love these sandals! Super comfortable and stylish.',
+        author: 'Rachel M.',
+        rating: '5',
+        hasImage: true,
+        hasVideo: true,
+        verified: true
+      },
+      {
+        id: '13',
+        date: '2023-12-15',
+        text: 'Poor quality materials. Started falling apart after a few days.',
+        author: 'Steve K.',
+        rating: '1',
+        hasImage: false,
+        hasVideo: false,
+        verified: false
+      },
+      {
+        id: '14',
+        date: '2023-12-12',
+        text: 'Nice sandals but a bit overpriced for what you get.',
+        author: 'Linda W.',
+        rating: '3',
+        hasImage: false,
+        hasVideo: false,
+        verified: true
+      },
+      {
+        id: '15',
+        date: '2023-12-10',
+        text: 'Fantastic product! Exactly what I was looking for.',
+        author: 'Robert H.',
+        rating: '5',
+        hasImage: true,
+        hasVideo: false,
+        verified: true
       }
     ];
 
-    const analyzedReviews = mockReviews.map((review, index) => ({
-      id: `${index + 1}`,
-      date: review.date,
-      text: review.text,
-      author: review.author,
-      rating: review.rating,
-      hasImage: review.hasImage,
-      hasVideo: review.hasVideo,
-      verified: review.verified,
-      sentiment: parseInt(review.rating) >= 4 ? 'positive' as const : parseInt(review.rating) === 3 ? 'neutral' as const : 'negative' as const,
-      confidence: 85 + Math.random() * 10,
-      explanation: 'AI analysis based on language patterns and sentiment indicators',
-      emotionScores: {
-        joy: parseInt(review.rating) >= 4 ? 0.8 : parseInt(review.rating) === 3 ? 0.4 : 0.2,
-        anger: parseInt(review.rating) <= 2 ? 0.6 : 0.1,
-        sadness: parseInt(review.rating) <= 2 ? 0.4 : 0.1,
-        surprise: 0.2
-      },
-      classification: review.verified ? 'genuine' as const : 'suspicious' as const,
-      sentimentScore: parseInt(review.rating) / 5,
-      isVerifiedPurchase: review.verified
-    }));
+    const analyzedReviews = mockReviews.map((review, index) => {
+      // More realistic confidence scoring
+      let baseConfidence = 60; // Start with lower base confidence
+      
+      // Boost confidence for verified purchases
+      if (review.verified) {
+        baseConfidence += 20;
+      }
+      
+      // Boost confidence for media presence
+      if (review.hasImage) {
+        baseConfidence += 10;
+      }
+      if (review.hasVideo) {
+        baseConfidence += 15;
+      }
+      
+      // Adjust based on rating (extreme ratings without verification are more suspicious)
+      const rating = parseInt(review.rating);
+      if (!review.verified) {
+        if (rating === 1 || rating === 5) {
+          baseConfidence -= 15; // Extreme ratings without verification are suspicious
+        }
+      }
+      
+      // Add some randomness within a smaller range
+      const finalConfidence = Math.max(35, Math.min(95, baseConfidence + (Math.random() * 10 - 5)));
+
+      return {
+        id: `${index + 1}`,
+        date: review.date,
+        text: review.text,
+        author: review.author,
+        rating: review.rating,
+        hasImage: review.hasImage,
+        hasVideo: review.hasVideo,
+        verified: review.verified,
+        sentiment: parseInt(review.rating) >= 4 ? 'positive' as const : parseInt(review.rating) === 3 ? 'neutral' as const : 'negative' as const,
+        confidence: finalConfidence,
+        explanation: 'AI analysis based on language patterns and sentiment indicators',
+        emotionScores: {
+          joy: parseInt(review.rating) >= 4 ? 0.8 : parseInt(review.rating) === 3 ? 0.4 : 0.2,
+          anger: parseInt(review.rating) <= 2 ? 0.6 : 0.1,
+          sadness: parseInt(review.rating) <= 2 ? 0.4 : 0.1,
+          surprise: 0.2
+        },
+        classification: review.verified ? 'genuine' as const : 'suspicious' as const,
+        sentimentScore: parseInt(review.rating) / 5,
+        isVerifiedPurchase: review.verified
+      };
+    });
 
     const productData = {
       title: 'CUSHIONAIRE Women\'s Slide Sandals',
