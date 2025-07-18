@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-const rapidApiKey = Deno.env.get('RAPIDAPI_KEY') ?? ''; // SERP API (kept for backup)
+const rapidApiKey = Deno.env.get('RAPIDAPI_KEY') ?? ''; // SERP API
 const apifyToken = Deno.env.get('APIFY_TOKEN') ?? '';
 
 const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
@@ -13,7 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// SERP API Functions (kept as backup - not currently used)
+// SERP API Functions (kept as backup and for marketplace prices)
 async function fetchProductDetailsSERP(asin: string) {
   try {
     console.log(`[SERP] Fetching product details for ASIN: ${asin}`);
@@ -35,7 +35,7 @@ async function fetchProductDetailsSERP(asin: string) {
     }
 
     const productData = await productResponse.json();
-    console.log('[SERP] Product details API response:', JSON.stringify(productData, null, 2));
+    console.log('[SERP] Product details API response received');
 
     return productData;
   } catch (error) {
@@ -69,7 +69,7 @@ async function fetchReviewsSERP(asin: string) {
       }
 
       const reviewsData = await reviewsResponse.json();
-      console.log(`[SERP] Page ${page} API response:`, JSON.stringify(reviewsData, null, 2));
+      console.log(`[SERP] Page ${page} reviews fetched: ${reviewsData.data?.reviews?.length || 0} reviews`);
 
       if (reviewsData.data && reviewsData.data.reviews) {
         const pageReviews = reviewsData.data.reviews.map((review: any, index: number) => ({
@@ -92,10 +92,15 @@ async function fetchReviewsSERP(asin: string) {
   return realReviews.slice(0, 15);
 }
 
-// New Apify API Functions
+// Improved Apify API Functions
 async function fetchProductDetailsApify(productUrl: string) {
   try {
     console.log(`[Apify] Fetching product details for URL: ${productUrl}`);
+    
+    if (!apifyToken) {
+      console.error('[Apify] API token not configured');
+      return null;
+    }
     
     const input = {
       "productUrls": [{ "url": productUrl }],
@@ -106,6 +111,7 @@ async function fetchProductDetailsApify(productUrl: string) {
       "deduplicateRedirectedAsins": true
     };
 
+    console.log('[Apify] Starting product details scraping run...');
     const response = await fetch('https://api.apify.com/v2/acts/R8WeJwLuzLZ6g4Bkk/runs', {
       method: 'POST',
       headers: {
@@ -116,7 +122,8 @@ async function fetchProductDetailsApify(productUrl: string) {
     });
 
     if (!response.ok) {
-      console.error(`[Apify] Product details API failed: ${response.status} - ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`[Apify] Product details API failed: ${response.status} - ${response.statusText}`, errorText);
       return null;
     }
 
@@ -124,7 +131,11 @@ async function fetchProductDetailsApify(productUrl: string) {
     console.log('[Apify] Started product details run:', runData.id);
 
     // Wait for the run to complete
-    await waitForApifyRun(runData.id);
+    const success = await waitForApifyRun(runData.id);
+    if (!success) {
+      console.error('[Apify] Product details run failed or timed out');
+      return null;
+    }
 
     // Fetch results
     const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${runData.defaultDatasetId}/items`, {
@@ -139,7 +150,7 @@ async function fetchProductDetailsApify(productUrl: string) {
     }
 
     const results = await resultsResponse.json();
-    console.log('[Apify] Product details results:', JSON.stringify(results, null, 2));
+    console.log('[Apify] Product details results fetched:', results.length, 'items');
 
     return results[0] || null;
   } catch (error) {
@@ -152,9 +163,14 @@ async function fetchReviewsApify(productUrl: string) {
   try {
     console.log(`[Apify] Fetching reviews for URL: ${productUrl}`);
     
+    if (!apifyToken) {
+      console.error('[Apify] API token not configured');
+      return [];
+    }
+    
     const input = {
       "productUrls": [{ "url": productUrl }],
-      "maxReviews": 100,
+      "maxReviews": 50,
       "includeGdprSensitive": false,
       "scrapeAdvancedReviews": true,
       "sort": "helpful",
@@ -167,6 +183,7 @@ async function fetchReviewsApify(productUrl: string) {
       "deduplicateRedirectedAsins": true
     };
 
+    console.log('[Apify] Starting reviews scraping run...');
     const response = await fetch('https://api.apify.com/v2/acts/R8WeJwLuzLZ6g4Bkk/runs', {
       method: 'POST',
       headers: {
@@ -177,7 +194,8 @@ async function fetchReviewsApify(productUrl: string) {
     });
 
     if (!response.ok) {
-      console.error(`[Apify] Reviews API failed: ${response.status} - ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`[Apify] Reviews API failed: ${response.status} - ${response.statusText}`, errorText);
       return [];
     }
 
@@ -185,7 +203,11 @@ async function fetchReviewsApify(productUrl: string) {
     console.log('[Apify] Started reviews run:', runData.id);
 
     // Wait for the run to complete
-    await waitForApifyRun(runData.id);
+    const success = await waitForApifyRun(runData.id);
+    if (!success) {
+      console.error('[Apify] Reviews run failed or timed out');
+      return [];
+    }
 
     // Fetch results
     const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${runData.defaultDatasetId}/items`, {
@@ -200,7 +222,7 @@ async function fetchReviewsApify(productUrl: string) {
     }
 
     const results = await resultsResponse.json();
-    console.log('[Apify] Reviews results count:', results.length);
+    console.log('[Apify] Reviews results fetched:', results.length, 'items');
 
     // Convert Apify reviews to our format
     const formattedReviews = [];
@@ -220,6 +242,7 @@ async function fetchReviewsApify(productUrl: string) {
       }
     }
 
+    console.log('[Apify] Formatted reviews:', formattedReviews.length);
     return formattedReviews.slice(0, 15);
   } catch (error) {
     console.error('[Apify] Error fetching reviews:', error);
@@ -227,8 +250,10 @@ async function fetchReviewsApify(productUrl: string) {
   }
 }
 
-async function waitForApifyRun(runId: string, maxWaitTime = 120000) {
+async function waitForApifyRun(runId: string, maxWaitTime = 180000) {
   const startTime = Date.now();
+  
+  console.log(`[Apify] Waiting for run ${runId} to complete...`);
   
   while (Date.now() - startTime < maxWaitTime) {
     try {
@@ -240,20 +265,22 @@ async function waitForApifyRun(runId: string, maxWaitTime = 120000) {
 
       if (response.ok) {
         const runData = await response.json();
+        console.log(`[Apify] Run ${runId} status: ${runData.status}`);
+        
         if (runData.status === 'SUCCEEDED') {
           console.log(`[Apify] Run ${runId} completed successfully`);
           return true;
         } else if (runData.status === 'FAILED') {
-          console.error(`[Apify] Run ${runId} failed`);
+          console.error(`[Apify] Run ${runId} failed:`, runData.statusMessage);
           return false;
         }
       }
 
-      // Wait 3 seconds before checking again
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Wait 5 seconds before checking again
+      await new Promise(resolve => setTimeout(resolve, 5000));
     } catch (error) {
       console.error(`[Apify] Error checking run status:`, error);
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }
 
@@ -291,7 +318,7 @@ async function searchSimilarProducts(productTitle: string, category: string) {
     }
 
     const searchData = await searchResponse.json();
-    console.log('Search API response for similar products:', JSON.stringify(searchData, null, 2));
+    console.log('Search API response for similar products received');
 
     // Return first 5 similar products for price comparison
     return searchData?.data?.products?.slice(0, 5) || [];
@@ -486,13 +513,6 @@ serve(async (req) => {
       });
     }
 
-    if (!apifyToken) {
-      return new Response(JSON.stringify({ error: 'Apify token not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     console.log('Analyzing URL:', url);
 
     // Extract ASIN from Amazon URL
@@ -508,33 +528,69 @@ serve(async (req) => {
 
     console.log('Extracted ASIN:', asin);
 
-    // Use Apify API for primary data fetching
-    const [productDetailsData, reviewsResult, marketplacePricesResult] = await Promise.allSettled([
-      fetchProductDetailsApify(url),
-      fetchReviewsApify(url),
-      fetchMultiMarketplacePrices(asin) // Still using SERP for marketplace prices
-    ]);
+    // Try Apify first, fallback to SERP if needed
+    let productDetailsData = null;
+    let reviewsResult = [];
+    let dataSource = 'Unknown';
 
-    // Extract product information
-    const productData = productDetailsData.status === 'fulfilled' ? productDetailsData.value : null;
-    const productInfo = extractProductInfo(productData);
+    // Try Apify API first
+    if (apifyToken) {
+      console.log('[Strategy] Trying Apify API first...');
+      const [apifyProductResult, apifyReviewsResult] = await Promise.allSettled([
+        fetchProductDetailsApify(url),
+        fetchReviewsApify(url)
+      ]);
+
+      if (apifyProductResult.status === 'fulfilled' && apifyProductResult.value) {
+        productDetailsData = apifyProductResult.value;
+        dataSource = 'Apify';
+        console.log('[Strategy] Using Apify for product details');
+      }
+
+      if (apifyReviewsResult.status === 'fulfilled' && apifyReviewsResult.value && apifyReviewsResult.value.length > 0) {
+        reviewsResult = apifyReviewsResult.value;
+        dataSource = 'Apify';
+        console.log('[Strategy] Using Apify for reviews');
+      }
+    }
+
+    // Fallback to SERP API if Apify didn't work
+    if (!productDetailsData || reviewsResult.length === 0) {
+      console.log('[Strategy] Falling back to SERP API...');
+      
+      if (!productDetailsData) {
+        productDetailsData = await fetchProductDetailsSERP(asin);
+        if (productDetailsData) {
+          dataSource = 'SERP';
+          console.log('[Strategy] Using SERP for product details');
+        }
+      }
+
+      if (reviewsResult.length === 0) {
+        reviewsResult = await fetchReviewsSERP(asin);
+        if (reviewsResult.length > 0) {
+          dataSource = 'SERP';
+          console.log('[Strategy] Using SERP for reviews');
+        }
+      }
+    }
+
+    // Get marketplace prices (always use SERP for this)
+    const marketplacePrices = await fetchMultiMarketplacePrices(asin);
     
-    // Get marketplace prices
-    const marketplacePrices = marketplacePricesResult.status === 'fulfilled' ? marketplacePricesResult.value : [];
+    // Extract product information
+    const productInfo = extractProductInfo(productDetailsData);
     
     // Search for similar products for price comparison (using SERP API)
     const similarProducts = await searchSimilarProducts(productInfo.productName, productInfo.category);
     
     // Enhanced price analysis with cross-marketplace and similar product comparison
-    const priceAnalysis = await analyzePricing(productData, similarProducts, marketplacePrices);
+    const priceAnalysis = await analyzePricing(productDetailsData, similarProducts, marketplacePrices);
 
-    // Handle reviews result
-    const realReviews = reviewsResult.status === 'fulfilled' ? reviewsResult.value : [];
-
-    console.log(`Successfully fetched product details, ${realReviews.length} reviews, ${marketplacePrices.length} marketplace prices, and ${similarProducts.length} similar products`);
+    console.log(`Successfully fetched product details, ${reviewsResult.length} reviews, ${marketplacePrices.length} marketplace prices, and ${similarProducts.length} similar products using ${dataSource}`);
 
     // Handle case where no reviews are available (e.g., pre-order products)
-    if (realReviews.length === 0) {
+    if (reviewsResult.length === 0) {
       console.log('No reviews found - handling as pre-order or new product');
       
       // Enhanced marketplace analysis including similar product comparison
@@ -574,7 +630,7 @@ serve(async (req) => {
           sadness: 0
         },
         insights: [
-          'No reviews available for analysis (using Apify API)',
+          `No reviews available for analysis (using ${dataSource} API)`,
           'This appears to be a new or pre-order product',
           `Product availability: ${productInfo.availability}`,
           `Current price: $${priceAnalysis.averagePrice > 0 ? priceAnalysis.averagePrice.toFixed(2) : 'Not available'}`,
@@ -634,7 +690,7 @@ serve(async (req) => {
     }
 
     // Continue with normal analysis if reviews are available
-    const analyzedReviews = realReviews.map(review => {
+    const analyzedReviews = reviewsResult.map(review => {
       // Enhanced classification logic based on real review patterns
       let classification: 'genuine' | 'paid' | 'bot' | 'malicious';
       let confidence = 85;
@@ -771,7 +827,7 @@ serve(async (req) => {
     const maliciousCount = analyzedReviews.filter(r => r.classification === 'malicious').length;
     
     const insights = [
-      `${Math.round((genuineCount / totalReviews) * 100)}% of reviews appear genuine (via Apify API)`,
+      `${Math.round((genuineCount / totalReviews) * 100)}% of reviews appear genuine (via ${dataSource} API)`,
       `${sentimentDistribution.positive}% positive sentiment detected`,
       `Average sentiment score: ${avgSentiment.toFixed(2)}`,
       `${botCount} potential bot reviews identified`,
@@ -825,7 +881,7 @@ serve(async (req) => {
         brand: productInfo.brand,
         availability: productInfo.availability
       },
-      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} (via Apify API) shows ${overallTrust}% appear genuine. Cross-marketplace price analysis across ${priceAnalysis.marketplacesChecked} markets reveals ${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns' : 'consistent pricing'}. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
+      summaryOverall: `Analysis of ${totalReviews} real Amazon reviews for ${productInfo.productName} (via ${dataSource} API) shows ${overallTrust}% appear genuine. Cross-marketplace price analysis across ${priceAnalysis.marketplacesChecked} markets reveals ${priceAnalysis.suspiciousPricing ? 'suspicious pricing patterns' : 'consistent pricing'}. Current price: $${priceAnalysis.averagePrice.toFixed(2)}.`,
       summaryPositive: positiveCount > 0 ? "Customers appreciate product quality and performance based on verified reviews." : "Limited positive feedback detected.",
       summaryNegative: negativeCount > 0 ? "Some customers report issues with quality or expectations not being met." : "Few negative concerns identified.",
       recommendation: overallTrust > 70 && priceAnalysis.marketplacesChecked >= 3 && !priceAnalysis.suspiciousPricing ? 
@@ -866,7 +922,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in analyze-reviews function:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
