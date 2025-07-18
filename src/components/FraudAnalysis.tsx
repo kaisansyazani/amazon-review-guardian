@@ -225,31 +225,25 @@ export const FraudAnalysis = ({
               </h4>
               <div className="space-y-2">
                 {amazonPrices.map((price, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 rounded border bg-card">
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-orange-500" />
                       <span className="text-sm font-medium">{price.country}</span>
                     </div>
-                    <div className="text-right flex items-center gap-3">
-                      <div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
                         <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
                         <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
                       </div>
-                      {price.url ? (
-                        <a 
-                          href={price.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center text-primary hover:text-primary/80 transition-colors p-2 hover:bg-muted rounded-md border border-border hover:border-primary/20"
-                          title={`View product on ${price.country}`}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      ) : (
-                        <div className="w-8 h-8 flex items-center justify-center text-muted-foreground/50">
-                          <span className="text-xs">N/A</span>
-                        </div>
-                      )}
+                      <a 
+                        href={price.url || `https://amazon.com/dp/B08N5WRWNW`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center text-primary hover:text-primary/80 transition-colors p-2 hover:bg-primary/10 rounded-md border border-border hover:border-primary/30"
+                        title={`View product on ${price.country}`}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
                     </div>
                   </div>
                 ))}
@@ -262,32 +256,26 @@ export const FraudAnalysis = ({
               <h4 className="text-sm font-semibold">Similar Products for Comparison:</h4>
               <div className="space-y-2">
                 {similarProductPrices.map((price, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 rounded border bg-card">
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-2">
                       <ShoppingCart className="h-4 w-4 text-blue-500" />
                       <span className="text-sm font-medium">{price.country}</span>
                       <Badge variant="outline" className="text-xs">Similar Product</Badge>
                     </div>
-                    <div className="text-right flex items-center gap-3">
-                      <div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
                         <div className="text-sm font-bold">${price.price.toFixed(2)}</div>
                         <div className="text-xs text-muted-foreground">{price.originalPrice}</div>
                       </div>
-                      {price.url ? (
-                        <a 
-                          href={price.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center text-primary hover:text-primary/80 transition-colors p-2 hover:bg-muted rounded-md border border-border hover:border-primary/20"
-                          title="View similar product"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      ) : (
-                        <div className="w-8 h-8 flex items-center justify-center text-muted-foreground/50">
-                          <span className="text-xs">N/A</span>
-                        </div>
-                      )}
+                      <a 
+                        href={price.url || `https://amazon.com/s?k=${encodeURIComponent(price.country)}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center text-primary hover:text-primary/80 transition-colors p-2 hover:bg-primary/10 rounded-md border border-border hover:border-primary/30"
+                        title="View similar product"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
                     </div>
                   </div>
                 ))}
