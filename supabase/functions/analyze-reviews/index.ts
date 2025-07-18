@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -35,19 +36,12 @@ function extractASIN(url: string): string | null {
   console.log(`Extracting ASIN from URL: ${url}`);
   
   const asinPatterns = [
-    // Standard /dp/ pattern
     /\/dp\/([A-Z0-9]{10})/i,
-    // Product page pattern
     /\/gp\/product\/([A-Z0-9]{10})/i,
-    // ASIN pattern in obidos
     /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})/i,
-    // Direct product pattern
     /\/product\/([A-Z0-9]{10})/i,
-    // ASIN between slashes and query parameters (like your case)
     /\/([A-Z0-9]{10})[\/?]/i,
-    // ASIN at the end of path before query
     /\/([A-Z0-9]{10})\?/i,
-    // ASIN in URL path segments
     /[\/=]([A-Z0-9]{10})(?:[\/\?&]|$)/i
   ];
   
@@ -61,6 +55,123 @@ function extractASIN(url: string): string | null {
   
   console.log('No ASIN found in URL');
   return null;
+}
+
+// Function to scrape Amazon reviews using RapidAPI
+async function scrapeAmazonReviews(asin: string): Promise<{ reviews: Review[]; productName: string } | null> {
+  const rapidApiKey = Deno.env.get('RAPIDAPI_KEY');
+  if (!rapidApiKey) {
+    console.error('RAPIDAPI_KEY not found in environment variables');
+    return null;
+  }
+
+  try {
+    console.log(`Attempting to scrape reviews for ASIN: ${asin} using RapidAPI`);
+    
+    const response = await fetch(`https://amazon-scraper-api3.p.rapidapi.com/reviews/${asin}`, {
+      method: 'GET',
+      headers: {
+        'X-RapidAPI-Key': rapidApiKey,
+        'X-RapidAPI-Host': 'amazon-scraper-api3.p.rapidapi.com'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`RapidAPI request failed with status: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('RapidAPI response received:', JSON.stringify(data, null, 2));
+
+    // Parse the response and extract reviews
+    if (data && data.reviews && Array.isArray(data.reviews)) {
+      const reviews: Review[] = data.reviews.slice(0, 15).map((review: any, index: number) => ({
+        id: `${index + 1}`,
+        date: review.date || new Date().toISOString().split('T')[0],
+        text: review.text || review.review_text || '',
+        author: review.author || review.reviewer_name || 'Anonymous',
+        rating: String(review.rating || review.star_rating || 3),
+        hasImage: Boolean(review.images && review.images.length > 0),
+        hasVideo: Boolean(review.videos && review.videos.length > 0),
+        verified: Boolean(review.verified_purchase || review.is_verified)
+      }));
+
+      const productName = data.product_name || data.title || 'Amazon Product';
+      
+      console.log(`Successfully parsed ${reviews.length} reviews from RapidAPI`);
+      return { reviews, productName };
+    }
+
+    console.log('No reviews found in RapidAPI response');
+    return null;
+  } catch (error) {
+    console.error('Error calling RapidAPI:', error);
+    return null;
+  }
+}
+
+// Fallback mock data function
+function generateMockData(): { reviews: Review[]; productName: string } {
+  console.log('Using fallback mock data');
+  
+  const mockReviews: Review[] = [
+    {
+      id: '1',
+      date: '2024-01-15',
+      text: 'Great product! Really happy with the quality and fast shipping. These sandals are comfortable and look exactly as described.',
+      author: 'John D.',
+      rating: '5',
+      hasImage: false,
+      hasVideo: false,
+      verified: true
+    },
+    {
+      id: '2',
+      date: '2024-01-12',
+      text: 'Good value for money. Works as expected, no complaints. Fits perfectly and the material feels durable.',
+      author: 'Sarah M.',
+      rating: '4',
+      hasImage: true,
+      hasVideo: false,
+      verified: true
+    },
+    {
+      id: '3',
+      date: '2024-01-10',
+      text: 'Not what I expected. Quality could be better for the price. The sandals felt cheap and broke after a week.',
+      author: 'Mike R.',
+      rating: '2',
+      hasImage: false,
+      hasVideo: false,
+      verified: false
+    },
+    {
+      id: '4',
+      date: '2024-01-08',
+      text: 'Amazing comfort! I wear these every day now. Perfect for summer and very stylish.',
+      author: 'Lisa K.',
+      rating: '5',
+      hasImage: true,
+      hasVideo: true,
+      verified: true
+    },
+    {
+      id: '5',
+      date: '2024-01-05',
+      text: 'Decent sandals but nothing special. They do the job but I expected more.',
+      author: 'Tom B.',
+      rating: '3',
+      hasImage: false,
+      hasVideo: false,
+      verified: true
+    }
+  ];
+
+  return {
+    reviews: mockReviews,
+    productName: 'Sample Amazon Product'
+  };
 }
 
 Deno.serve(async (req) => {
@@ -92,211 +203,21 @@ Deno.serve(async (req) => {
 
     console.log(`Starting analysis for ASIN: ${asin}`);
     
-    // Initialize Apify client
-    const apifyToken = Deno.env.get('APIFY_TOKEN');
-    if (!apifyToken) {
-      console.log('APIFY_TOKEN not configured, using demo data');
-      // Skip to demo data generation
-    } else {
-      // Try the Apify scraper with proper URL format
-      console.log('Starting Amazon scraper...');
-      const amazonUrl = `https://www.amazon.com/dp/${asin}`;
-      
-      try {
-        const runResponse = await fetch(`https://api.apify.com/v2/acts/junglee~free-amazon-product-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            startUrls: [{ url: amazonUrl }],
-            maxReviews: 15,
-            proxy: {
-              useApifyProxy: true
-            }
-          }),
-        });
-
-        if (runResponse.ok) {
-          const scraperData = await runResponse.json();
-          console.log('Scraper completed, processing data...');
-          
-          if (scraperData && scraperData.length > 0) {
-            const productData = scraperData[0];
-            const reviews: Review[] = productData.reviews || [];
-            
-            if (reviews.length > 0) {
-              console.log(`Found ${reviews.length} reviews, continuing with real data...`);
-              // Process real reviews here - but for now, we'll use demo data
-            }
-          }
-        } else {
-          console.log(`Apify scraper failed with status ${runResponse.status}, using demo data`);
-        }
-      } catch (apifyError) {
-        console.log('Apify scraper error:', apifyError, 'using demo data');
-      }
+    // Try to scrape real data from RapidAPI first
+    let productData = await scrapeAmazonReviews(asin);
+    
+    // If RapidAPI fails, use mock data as fallback
+    if (!productData) {
+      console.log('RapidAPI scraping failed, falling back to mock data');
+      productData = generateMockData();
     }
 
-    // Generate demo data for analysis (now with 15 reviews)
-    console.log('Generating demo data for analysis');
-    
-    const mockReviews: Review[] = [
-      {
-        id: '1',
-        date: '2024-01-15',
-        text: 'Great product! Really happy with the quality and fast shipping. These sandals are comfortable and look exactly as described.',
-        author: 'John D.',
-        rating: '5',
-        hasImage: false,
-        hasVideo: false,
-        verified: true
-      },
-      {
-        id: '2',
-        date: '2024-01-12',
-        text: 'Good value for money. Works as expected, no complaints. Fits perfectly and the material feels durable.',
-        author: 'Sarah M.',
-        rating: '4',
-        hasImage: true,
-        hasVideo: false,
-        verified: true
-      },
-      {
-        id: '3',
-        date: '2024-01-10',
-        text: 'Not what I expected. Quality could be better for the price. The sandals felt cheap and broke after a week.',
-        author: 'Mike R.',
-        rating: '2',
-        hasImage: false,
-        hasVideo: false,
-        verified: false
-      },
-      {
-        id: '4',
-        date: '2024-01-08',
-        text: 'Amazing comfort! I wear these every day now. Perfect for summer and very stylish.',
-        author: 'Lisa K.',
-        rating: '5',
-        hasImage: true,
-        hasVideo: true,
-        verified: true
-      },
-      {
-        id: '5',
-        date: '2024-01-05',
-        text: 'Decent sandals but nothing special. They do the job but I expected more.',
-        author: 'Tom B.',
-        rating: '3',
-        hasImage: false,
-        hasVideo: false,
-        verified: true
-      },
-      {
-        id: '6',
-        date: '2024-01-03',
-        text: 'Perfect fit and very comfortable. Love the design and quality.',
-        author: 'Emily R.',
-        rating: '5',
-        hasImage: true,
-        hasVideo: false,
-        verified: true
-      },
-      {
-        id: '7',
-        date: '2024-01-01',
-        text: 'Okay product but arrived damaged. Had to return.',
-        author: 'David L.',
-        rating: '2',
-        hasImage: false,
-        hasVideo: false,
-        verified: false
-      },
-      {
-        id: '8',
-        date: '2023-12-28',
-        text: 'Excellent sandals! Very comfortable for walking long distances.',
-        author: 'Jessica P.',
-        rating: '4',
-        hasImage: false,
-        hasVideo: true,
-        verified: true
-      },
-      {
-        id: '9',
-        date: '2023-12-25',
-        text: 'These are fake! Nothing like the real product. Waste of money.',
-        author: 'Anonymous User',
-        rating: '1',
-        hasImage: false,
-        hasVideo: false,
-        verified: false
-      },
-      {
-        id: '10',
-        date: '2023-12-22',
-        text: 'Good quality sandals. Worth the price and very durable.',
-        author: 'Mark T.',
-        rating: '4',
-        hasImage: true,
-        hasVideo: false,
-        verified: true
-      },
-      {
-        id: '11',
-        date: '2023-12-20',
-        text: 'Average product. Nothing special but does the job.',
-        author: 'Karen S.',
-        rating: '3',
-        hasImage: false,
-        hasVideo: false,
-        verified: false
-      },
-      {
-        id: '12',
-        date: '2023-12-18',
-        text: 'Love these sandals! Super comfortable and stylish.',
-        author: 'Rachel M.',
-        rating: '5',
-        hasImage: true,
-        hasVideo: true,
-        verified: true
-      },
-      {
-        id: '13',
-        date: '2023-12-15',
-        text: 'Poor quality materials. Started falling apart after a few days.',
-        author: 'Steve K.',
-        rating: '1',
-        hasImage: false,
-        hasVideo: false,
-        verified: false
-      },
-      {
-        id: '14',
-        date: '2023-12-12',
-        text: 'Nice sandals but a bit overpriced for what you get.',
-        author: 'Linda W.',
-        rating: '3',
-        hasImage: false,
-        hasVideo: false,
-        verified: true
-      },
-      {
-        id: '15',
-        date: '2023-12-10',
-        text: 'Fantastic product! Exactly what I was looking for.',
-        author: 'Robert H.',
-        rating: '5',
-        hasImage: true,
-        hasVideo: false,
-        verified: true
-      }
-    ];
+    const { reviews, productName } = productData;
+    console.log(`Using ${reviews.length} reviews for analysis...`);
 
-    const analyzedReviews = mockReviews.map((review, index) => {
+    const analyzedReviews = reviews.map((review, index) => {
       // More realistic confidence scoring
-      let baseConfidence = 60; // Start with lower base confidence
+      let baseConfidence = 60;
       
       // Boost confidence for verified purchases
       if (review.verified) {
@@ -311,11 +232,11 @@ Deno.serve(async (req) => {
         baseConfidence += 15;
       }
       
-      // Adjust based on rating (extreme ratings without verification are more suspicious)
+      // Adjust based on rating
       const rating = parseInt(review.rating);
       if (!review.verified) {
         if (rating === 1 || rating === 5) {
-          baseConfidence -= 15; // Extreme ratings without verification are suspicious
+          baseConfidence -= 15;
         }
       }
       
@@ -345,15 +266,6 @@ Deno.serve(async (req) => {
         isVerifiedPurchase: review.verified
       };
     });
-
-    const productData = {
-      title: 'CUSHIONAIRE Women\'s Slide Sandals',
-      reviews: mockReviews
-    };
-    
-    const reviews = mockReviews;
-
-    console.log(`Using ${reviews.length} reviews for analysis...`);
 
     // Calculate overall metrics
     const totalReviews = analyzedReviews.length;
@@ -419,7 +331,7 @@ Deno.serve(async (req) => {
 
     const analysisData = {
       asin,
-      product_name: productData.title || null,
+      product_name: productName || null,
       overall_trust: trustScore,
       total_reviews: totalReviews,
       analyzed_reviews: analyzedReviews,
