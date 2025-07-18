@@ -117,7 +117,7 @@ export const ResultsDashboard = ({ results, onReset }: ResultsDashboardProps) =>
               <InsightsPanel insights={results.insights} />
             </div>
 
-            <div>
+            <div className="space-y-6">
               <AISummary 
                 summaryOverall={results.summaryOverall}
                 summaryPositive={results.summaryPositive}
