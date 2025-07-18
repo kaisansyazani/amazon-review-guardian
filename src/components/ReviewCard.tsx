@@ -86,7 +86,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
       adjustedConfidence = Math.min(100, adjustedConfidence + 15); // Boost confidence for verified purchases
     }
     
-    return adjustedConfidence;
+    return Math.round(adjustedConfidence * 10) / 10; // Round to 1 decimal place
   };
 
   // Adjust confidence explanation based on media presence and verified purchase
@@ -160,7 +160,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                     No Media
                   </Badge>
                 )}
-                <span className="text-sm font-medium">{adjustedConfidence}% confidence</span>
+                <span className="text-sm font-medium">{adjustedConfidence.toFixed(1)}% confidence</span>
               </div>
               
               <div className="flex items-center gap-1 mb-1">
