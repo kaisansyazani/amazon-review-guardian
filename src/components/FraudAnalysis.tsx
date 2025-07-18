@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Shield, DollarSign, Globe, CheckCircle, ShoppingCart, ExternalLink } from "lucide-react";
@@ -240,9 +241,10 @@ export const FraudAnalysis = ({
                           href={price.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/80 transition-colors"
+                          className="text-primary hover:text-primary/80 transition-colors p-1 hover:bg-muted rounded"
+                          title={`View product on ${price.country}`}
                         >
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
                     </div>
@@ -273,10 +275,10 @@ export const FraudAnalysis = ({
                           href={price.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/80 transition-colors"
+                          className="text-primary hover:text-primary/80 transition-colors p-1 hover:bg-muted rounded"
                           title="View similar product"
                         >
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
                     </div>

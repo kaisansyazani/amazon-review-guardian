@@ -2,7 +2,7 @@
 import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh } from "lucide-react";
+import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video } from "lucide-react";
 
 interface ReviewCardProps {
   review: Review;
@@ -78,6 +78,19 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
 
   const sentiment = getSentimentIndicator(review.rating);
 
+  // Adjust confidence explanation based on media presence
+  const getConfidenceExplanation = () => {
+    let explanation = review.explanation;
+    
+    if (review.hasImage || review.hasVideo) {
+      explanation += ` Review includes ${review.hasImage ? 'images' : ''}${review.hasImage && review.hasVideo ? ' and ' : ''}${review.hasVideo ? 'videos' : ''}, which increases authenticity confidence.`;
+    } else if (review.classification === 'genuine') {
+      explanation += " Note: Review lacks visual content (images/videos), which slightly reduces confidence in authenticity.";
+    }
+    
+    return explanation;
+  };
+
   return (
     <Card className="border-l-4 border-l-muted">
       <CardContent className="p-4">
@@ -94,6 +107,20 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                   {sentiment.label}
                 </Badge>
                 <span className="text-sm font-medium">{review.confidence}% confidence</span>
+                
+                {/* Media presence indicators */}
+                {review.hasImage && (
+                  <Badge variant="outline" className="gap-1 text-xs">
+                    <Image className="h-3 w-3" />
+                    Image
+                  </Badge>
+                )}
+                {review.hasVideo && (
+                  <Badge variant="outline" className="gap-1 text-xs">
+                    <Video className="h-3 w-3" />
+                    Video
+                  </Badge>
+                )}
               </div>
               
               <div className="flex items-center gap-1 mb-1">
@@ -116,7 +143,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
 
           <div className="p-3 bg-muted/50 rounded-lg border-l-2 border-l-primary">
             <div className="text-xs font-medium text-muted-foreground mb-1">AI Analysis:</div>
-            <div className="text-sm">{review.explanation}</div>
+            <div className="text-sm">{getConfidenceExplanation()}</div>
           </div>
         </div>
       </CardContent>

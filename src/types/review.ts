@@ -8,4 +8,6 @@ export interface Review {
   classification: 'genuine' | 'paid' | 'bot' | 'malicious';
   confidence: number;
   explanation: string;
+  hasImage?: boolean;
+  hasVideo?: boolean;
 }
