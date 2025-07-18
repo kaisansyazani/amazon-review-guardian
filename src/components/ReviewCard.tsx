@@ -2,7 +2,7 @@
 import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video } from "lucide-react";
+import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video, X } from "lucide-react";
 
 interface ReviewCardProps {
   review: Review;
@@ -106,7 +106,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                   {sentiment.icon}
                   {sentiment.label}
                 </Badge>
-                {/* Media presence indicators moved here - more prominent */}
+                {/* Media presence indicators - more prominent */}
                 {review.hasImage && (
                   <Badge variant="outline" className="gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
                     <Image className="h-3 w-3" />
@@ -117,6 +117,13 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                   <Badge variant="outline" className="gap-1 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100">
                     <Video className="h-3 w-3" />
                     Videos
+                  </Badge>
+                )}
+                {/* No Media badge when there are no images or videos */}
+                {!review.hasImage && !review.hasVideo && (
+                  <Badge variant="outline" className="gap-1 text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-100">
+                    <X className="h-3 w-3" />
+                    No Media
                   </Badge>
                 )}
                 <span className="text-sm font-medium">{review.confidence}% confidence</span>
