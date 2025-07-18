@@ -43,35 +43,26 @@ export const FraudAnalysis = ({
   const amazonMarketplaces = marketplaceAnalysis.filter(m => m.marketplace === 'amazon' || m.country.includes('Amazon')) || [];
   const otherMarketplaces = marketplaceAnalysis.filter(m => m.marketplace === 'other' || !m.country.includes('Amazon')) || [];
 
-  // Enhanced price analysis for comprehensive cross-platform comparison
+  // Enhanced price analysis for cross-marketplace comparison
   const amazonPrices = priceAnalysis.prices?.filter(p => p.marketplace === 'amazon' || p.country.includes('Amazon')) || [];
   const similarProductPrices = priceAnalysis.prices?.filter(p => p.marketplace === 'other' || (!p.country.includes('Amazon') && !p.marketplace)) || [];
   
-  // Calculate comprehensive price statistics across ALL sources (Amazon + Similar Products)
-  const allPriceValues = priceAnalysis.prices?.map(p => p.price).filter(p => p > 0) || [];
+  // Calculate price statistics for Amazon marketplaces only
   const amazonPriceValues = amazonPrices.map(p => p.price).filter(p => p > 0);
-  const similarPriceValues = similarProductPrices.map(p => p.price).filter(p => p > 0);
-  
-  // Comprehensive price variation calculation
-  const comprehensiveMinPrice = allPriceValues.length > 0 ? Math.min(...allPriceValues) : 0;
-  const comprehensiveMaxPrice = allPriceValues.length > 0 ? Math.max(...allPriceValues) : 0;
-  const comprehensiveAvgPrice = allPriceValues.length > 0 ? allPriceValues.reduce((sum, p) => sum + p, 0) / allPriceValues.length : 0;
-  const comprehensivePriceVariation = allPriceValues.length > 1 ? ((comprehensiveMaxPrice - comprehensiveMinPrice) / comprehensiveAvgPrice) * 100 : 0;
-  
-  // Amazon-only price statistics
   const amazonMinPrice = amazonPriceValues.length > 0 ? Math.min(...amazonPriceValues) : 0;
   const amazonMaxPrice = amazonPriceValues.length > 0 ? Math.max(...amazonPriceValues) : 0;
   const amazonAvgPrice = amazonPriceValues.length > 0 ? amazonPriceValues.reduce((sum, p) => sum + p, 0) / amazonPriceValues.length : 0;
   const amazonPriceVariation = amazonPriceValues.length > 1 ? ((amazonMaxPrice - amazonMinPrice) / amazonAvgPrice) * 100 : 0;
   
-  // Enhanced suspicious pricing detection using comprehensive data
-  const isSuspiciousComprehensivePricing = comprehensivePriceVariation > 40; // More than 40% variation across all sources
+  // Enhanced suspicious pricing detection
   const isSuspiciousAmazonPricing = amazonPriceVariation > 30; // More than 30% variation across Amazon marketplaces
+  const hasSimilarProductComparison = similarProductPrices.length > 0;
   
   let comparisonWithSimilarProducts = '';
-  if (similarPriceValues.length > 0 && amazonPriceValues.length > 0) {
+  if (hasSimilarProductComparison) {
+    const similarPriceValues = similarProductPrices.map(p => p.price).filter(p => p > 0);
     const similarAvgPrice = similarPriceValues.reduce((sum, p) => sum + p, 0) / similarPriceValues.length;
-    const priceDifferenceVsSimilar = ((amazonAvgPrice - similarAvgPrice) / similarAvgPrice) * 100;
+    const priceDifferenceVsSimilar = amazonAvgPrice > 0 ? ((amazonAvgPrice - similarAvgPrice) / similarAvgPrice) * 100 : 0;
     
     if (Math.abs(priceDifferenceVsSimilar) > 40) {
       comparisonWithSimilarProducts = `${priceDifferenceVsSimilar > 0 ? 'Significantly higher' : 'Suspiciously lower'} than similar products (${Math.abs(priceDifferenceVsSimilar).toFixed(1)}% difference)`;
@@ -79,9 +70,6 @@ export const FraudAnalysis = ({
       comparisonWithSimilarProducts = `Price consistent with similar products (${Math.abs(priceDifferenceVsSimilar).toFixed(1)}% difference)`;
     }
   }
-
-  // Total sources analyzed (Amazon marketplaces + similar products)
-  const totalSourcesAnalyzed = amazonPrices.length + similarProductPrices.length;
 
   return (
     <div className="space-y-6">
@@ -104,9 +92,9 @@ export const FraudAnalysis = ({
             <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30">
               <Globe className="h-4 w-4 text-primary" />
               <div>
-                <div className="text-sm font-medium">{totalSourcesAnalyzed} Price Sources</div>
+                <div className="text-sm font-medium">{marketplacesChecked} Markets Analyzed</div>
                 <div className="text-xs text-muted-foreground">
-                  {amazonPrices.length} Amazon + {similarProductPrices.length} Similar Products
+                  {priceAnalysis.crossMarketplaceAnalysis ? 'Cross-platform analysis' : 'Single marketplace analysis'}
                 </div>
               </div>
             </div>
@@ -122,53 +110,40 @@ export const FraudAnalysis = ({
             </div>
           </div>
 
-          {totalSourcesAnalyzed < 3 && (
+          {marketplacesChecked < 3 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-2 text-red-800">
                 <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm font-medium">Insufficient Price Sources</span>
+                <span className="text-sm font-medium">Insufficient Marketplace Coverage</span>
               </div>
               <p className="text-xs text-red-700 mt-1">
-                Only {totalSourcesAnalyzed} price source(s) analyzed. For reliable fraud detection, at least 3 sources must be compared. Current analysis may not be comprehensive.
+                Only {marketplacesChecked} marketplace(s) checked. For reliable fraud detection, at least 3 markets must be analyzed. Current analysis may not be comprehensive.
               </p>
             </div>
           )}
 
-          {isSuspiciousComprehensivePricing && totalSourcesAnalyzed >= 3 && (
+          {isSuspiciousAmazonPricing && amazonPrices.length >= 2 && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center gap-2 text-red-800">
                 <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm font-medium">Suspicious Cross-Platform Pricing Detected</span>
+                <span className="text-sm font-medium">Suspicious Cross-Marketplace Pricing Detected</span>
               </div>
               <p className="text-xs text-red-700 mt-1">
-                Price variation of {comprehensivePriceVariation.toFixed(1)}% across all sources (${comprehensiveMinPrice.toFixed(2)} - ${comprehensiveMaxPrice.toFixed(2)}). 
-                Such significant differences across Amazon marketplaces and similar products may indicate pricing manipulation or fraudulent activity.
-              </p>
-            </div>
-          )}
-
-          {isSuspiciousAmazonPricing && amazonPrices.length >= 2 && !isSuspiciousComprehensivePricing && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center gap-2 text-yellow-800">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="text-sm font-medium">Amazon Marketplace Price Variation</span>
-              </div>
-              <p className="text-xs text-yellow-700 mt-1">
                 Price variation of {amazonPriceVariation.toFixed(1)}% across Amazon marketplaces (${amazonMinPrice.toFixed(2)} - ${amazonMaxPrice.toFixed(2)}). 
-                Moderate variation detected within Amazon's ecosystem.
+                Such significant differences may indicate pricing manipulation or regional exploitation.
               </p>
             </div>
           )}
 
-          {totalSourcesAnalyzed >= 3 && !isSuspiciousComprehensivePricing && (
+          {marketplacesChecked >= 3 && priceAnalysis.crossMarketplaceAnalysis && !isSuspiciousAmazonPricing && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center gap-2 text-blue-800">
                 <ShoppingCart className="h-4 w-4" />
                 <span className="text-sm font-medium">Comprehensive Cross-Platform Analysis</span>
               </div>
               <p className="text-xs text-blue-700 mt-1">
-                Analysis includes {totalSourcesAnalyzed} price sources: {amazonPrices.length} Amazon marketplaces and {similarProductPrices.length} similar products. 
-                Overall price variation: {comprehensivePriceVariation.toFixed(1)}% (acceptable range for comprehensive fraud detection).
+                Analysis includes data from {marketplacesChecked} marketplaces including Amazon ({amazonMarketplaces.filter(m => m.success).length}) and other platforms ({otherMarketplaces.filter(m => m.success).length}) for comprehensive fraud detection.
+                {amazonPrices.length >= 2 && ` Amazon price variation: ${amazonPriceVariation.toFixed(1)}% (acceptable range).`}
               </p>
             </div>
           )}
@@ -191,28 +166,28 @@ export const FraudAnalysis = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
-            Cross-Platform Pricing Analysis
+            Cross-Market Pricing Analysis
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-lg bg-muted/30">
-              <div className="text-lg font-bold">${comprehensiveAvgPrice?.toFixed(2) || 'N/A'}</div>
-              <div className="text-xs text-muted-foreground">Average Price (All Sources)</div>
+              <div className="text-lg font-bold">${priceAnalysis.averagePrice?.toFixed(2) || 'N/A'}</div>
+              <div className="text-xs text-muted-foreground">Average Price</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-muted/30">
-              <div className="text-lg font-bold">{comprehensivePriceVariation?.toFixed(1) || 0}%</div>
-              <div className="text-xs text-muted-foreground">Overall Price Variation</div>
+              <div className="text-lg font-bold">{priceAnalysis.priceVariation?.toFixed(1) || 0}%</div>
+              <div className="text-xs text-muted-foreground">Price Variation</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-muted/30">
-              <div className="text-lg font-bold">{totalSourcesAnalyzed}</div>
-              <div className="text-xs text-muted-foreground">Total Price Sources</div>
+              <div className="text-lg font-bold">{marketplacesChecked}</div>
+              <div className="text-xs text-muted-foreground">Markets Checked</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-muted/30">
-              <Badge variant={isSuspiciousComprehensivePricing ? "destructive" : "secondary"}>
-                {isSuspiciousComprehensivePricing ? "Suspicious" : "Normal"}
+              <Badge variant={priceAnalysis.suspiciousPricing || isSuspiciousAmazonPricing ? "destructive" : "secondary"}>
+                {priceAnalysis.suspiciousPricing || isSuspiciousAmazonPricing ? "Suspicious" : "Normal"}
               </Badge>
-              <div className="text-xs text-muted-foreground mt-1">Cross-Platform Pattern</div>
+              <div className="text-xs text-muted-foreground mt-1">Pricing Pattern</div>
             </div>
           </div>
 
