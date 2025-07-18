@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +7,20 @@ import { Button } from "@/components/ui/button";
 import { TrustScore } from "@/components/TrustScore";
 import { Header } from "@/components/Header";
 import { DetailedAnalysisView } from "@/components/DetailedAnalysisView";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Use the database type directly but transform analyzed_reviews to proper array type
 type DatabaseAnalysisResult = Tables<'analysis_results'>;
@@ -21,6 +33,7 @@ export default function Library() {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState<AnalysisResult | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -54,6 +67,35 @@ export default function Library() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const { error } = await supabase
+        .from('analysis_results')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setResults(prev => prev.filter(result => result.id !== id));
+      
+      toast({
+        title: "Success",
+        description: "Analysis result deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting result:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete analysis result",
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -117,7 +159,7 @@ export default function Library() {
             {results.map((result) => (
               <Card 
                 key={result.id} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
+                className="hover:shadow-lg transition-shadow cursor-pointer relative"
                 onClick={() => handleCardClick(result)}
               >
                 <CardHeader>
@@ -126,20 +168,58 @@ export default function Library() {
                       <CardTitle className="text-lg mb-1">{result.product_name || 'Unknown Product'}</CardTitle>
                       <CardDescription className="text-sm font-mono">{result.asin}</CardDescription>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <a 
-                        href={generateAmazonUrl(result.asin)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
+                        <a 
+                          href={generateAmazonUrl(result.asin)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={deletingId === result.id}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            {deletingId === result.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Analysis</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete the analysis for "{result.product_name || result.asin}"? 
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(result.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                   <CardDescription>
                     Analyzed on {new Date(result.created_at).toLocaleDateString()}
