@@ -1,4 +1,3 @@
-
 import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -107,21 +106,25 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                   {sentiment.label}
                 </Badge>
                 <span className="text-sm font-medium">{review.confidence}% confidence</span>
-                
-                {/* Media presence indicators */}
-                {review.hasImage && (
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Image className="h-3 w-3" />
-                    Image
-                  </Badge>
-                )}
-                {review.hasVideo && (
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Video className="h-3 w-3" />
-                    Video
-                  </Badge>
-                )}
               </div>
+              
+              {/* Media presence indicators - more prominent */}
+              {(review.hasImage || review.hasVideo) && (
+                <div className="flex items-center gap-2 mb-2">
+                  {review.hasImage && (
+                    <Badge variant="outline" className="gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
+                      <Image className="h-3 w-3" />
+                      Has Images
+                    </Badge>
+                  )}
+                  {review.hasVideo && (
+                    <Badge variant="outline" className="gap-1 text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100">
+                      <Video className="h-3 w-3" />
+                      Has Videos
+                    </Badge>
+                  )}
+                </div>
+              )}
               
               <div className="flex items-center gap-1 mb-1">
                 {[...Array(5)].map((_, i) => (
