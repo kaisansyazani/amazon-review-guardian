@@ -10,4 +10,5 @@ export interface Review {
   explanation: string;
   hasImage?: boolean;
   hasVideo?: boolean;
+  isVerifiedPurchase?: boolean;
 }

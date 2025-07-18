@@ -2,7 +2,7 @@
 import { Review } from "@/types/review";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video, X } from "lucide-react";
+import { Star, Bot, DollarSign, Skull, CheckCircle, AlertTriangle, Smile, Frown, Meh, Image, Video, X, ShieldCheck } from "lucide-react";
 
 interface ReviewCardProps {
   review: Review;
@@ -78,9 +78,24 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
 
   const sentiment = getSentimentIndicator(review.rating);
 
-  // Adjust confidence explanation based on media presence
+  // Adjust confidence based on verified purchase and media presence
+  const getAdjustedConfidence = () => {
+    let adjustedConfidence = review.confidence;
+    
+    if (review.isVerifiedPurchase) {
+      adjustedConfidence = Math.min(100, adjustedConfidence + 15); // Boost confidence for verified purchases
+    }
+    
+    return adjustedConfidence;
+  };
+
+  // Adjust confidence explanation based on media presence and verified purchase
   const getConfidenceExplanation = () => {
     let explanation = review.explanation;
+    
+    if (review.isVerifiedPurchase) {
+      explanation += " This is a verified purchase, which significantly increases authenticity confidence.";
+    }
     
     if (review.hasImage || review.hasVideo) {
       explanation += ` Review includes ${review.hasImage ? 'images' : ''}${review.hasImage && review.hasVideo ? ' and ' : ''}${review.hasVideo ? 'videos' : ''}, which increases authenticity confidence.`;
@@ -91,6 +106,8 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
     return explanation;
   };
 
+  const adjustedConfidence = getAdjustedConfidence();
+
   return (
     <Card className="border-l-4 border-l-muted">
       <CardContent className="p-4">
@@ -98,6 +115,13 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {/* Verified Purchase badge - most prominent */}
+                {review.isVerifiedPurchase && (
+                  <Badge variant="outline" className="gap-1 text-xs bg-green-50 text-green-800 border-green-300 hover:bg-green-100 font-semibold">
+                    <ShieldCheck className="h-3 w-3 fill-green-600 text-green-600" />
+                    Verified Purchase
+                  </Badge>
+                )}
                 <Badge variant={getClassificationColor(review.classification) as any} className="gap-1">
                   {getClassificationIcon(review.classification)}
                   {getClassificationLabel(review.classification)}
@@ -131,7 +155,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
                     No Media
                   </Badge>
                 )}
-                <span className="text-sm font-medium">{review.confidence}% confidence</span>
+                <span className="text-sm font-medium">{adjustedConfidence}% confidence</span>
               </div>
               
               <div className="flex items-center gap-1 mb-1">
