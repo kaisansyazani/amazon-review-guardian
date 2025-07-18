@@ -792,7 +792,10 @@ serve(async (req) => {
         explanation,
         sentimentScore,
         sentiment,
-        emotionScores
+        emotionScores,
+        isVerifiedPurchase: review.verified || false,
+        hasImage: Math.random() > 0.7, // Simulate image presence for demo
+        hasVideo: Math.random() > 0.8  // Simulate video presence for demo
       };
     });
 
