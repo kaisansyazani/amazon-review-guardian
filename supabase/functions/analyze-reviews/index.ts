@@ -57,7 +57,7 @@ function extractASIN(url: string): string | null {
   return null;
 }
 
-// Function to scrape Amazon reviews using RapidAPI
+// Function to scrape Amazon reviews using the correct RapidAPI service
 async function scrapeAmazonReviews(asin: string): Promise<{ reviews: Review[]; productName: string } | null> {
   const rapidApiKey = Deno.env.get('RAPIDAPI_KEY');
   if (!rapidApiKey) {
@@ -66,44 +66,54 @@ async function scrapeAmazonReviews(asin: string): Promise<{ reviews: Review[]; p
   }
 
   try {
-    console.log(`Attempting to scrape reviews for ASIN: ${asin} using RapidAPI`);
+    console.log(`Attempting to scrape reviews for ASIN: ${asin} using Real-Time Amazon Data API`);
     
-    const response = await fetch(`https://amazon-scraper-api3.p.rapidapi.com/reviews/${asin}`, {
+    // Using the correct API endpoint from your example
+    const apiUrl = `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=1&sort_by=TOP_REVIEWS&star_rating=ALL&verified_purchases_only=false&images_or_videos_only=false&current_format_only=false`;
+    
+    console.log(`API URL: ${apiUrl}`);
+    console.log(`Using API Key: ${rapidApiKey.substring(0, 10)}...`);
+    
+    const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'X-RapidAPI-Key': rapidApiKey,
-        'X-RapidAPI-Host': 'amazon-scraper-api3.p.rapidapi.com'
+        'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com'
       }
     });
 
+    console.log(`API Response Status: ${response.status}`);
+    console.log(`API Response Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
+
     if (!response.ok) {
-      console.error(`RapidAPI request failed with status: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`RapidAPI request failed with status: ${response.status}, body: ${errorText}`);
       return null;
     }
 
     const data = await response.json();
     console.log('RapidAPI response received:', JSON.stringify(data, null, 2));
 
-    // Parse the response and extract reviews
-    if (data && data.reviews && Array.isArray(data.reviews)) {
-      const reviews: Review[] = data.reviews.slice(0, 15).map((review: any, index: number) => ({
+    // Parse the response and extract reviews based on the Real-Time Amazon Data API structure
+    if (data && data.data && data.data.reviews && Array.isArray(data.data.reviews)) {
+      const reviews: Review[] = data.data.reviews.slice(0, 15).map((review: any, index: number) => ({
         id: `${index + 1}`,
-        date: review.date || new Date().toISOString().split('T')[0],
-        text: review.text || review.review_text || '',
-        author: review.author || review.reviewer_name || 'Anonymous',
-        rating: String(review.rating || review.star_rating || 3),
-        hasImage: Boolean(review.images && review.images.length > 0),
-        hasVideo: Boolean(review.videos && review.videos.length > 0),
-        verified: Boolean(review.verified_purchase || review.is_verified)
+        date: review.review_date || new Date().toISOString().split('T')[0],
+        text: review.review_text || review.text || '',
+        author: review.reviewer_name || review.author || 'Anonymous',
+        rating: String(review.review_star_rating || review.rating || 3),
+        hasImage: Boolean(review.review_images && review.review_images.length > 0),
+        hasVideo: Boolean(review.review_videos && review.review_videos.length > 0),
+        verified: Boolean(review.is_verified_purchase)
       }));
 
-      const productName = data.product_name || data.title || 'Amazon Product';
+      const productName = data.data.product_title || data.data.title || 'Amazon Product';
       
-      console.log(`Successfully parsed ${reviews.length} reviews from RapidAPI`);
+      console.log(`Successfully parsed ${reviews.length} real reviews from RapidAPI`);
       return { reviews, productName };
     }
 
-    console.log('No reviews found in RapidAPI response');
+    console.log('No reviews found in RapidAPI response structure');
     return null;
   } catch (error) {
     console.error('Error calling RapidAPI:', error);
