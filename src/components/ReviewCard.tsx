@@ -108,6 +108,9 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
 
   const adjustedConfidence = getAdjustedConfidence();
 
+  // Check if review text is empty or missing
+  const hasReviewText = review.text && review.text.trim().length > 0;
+
   return (
     <Card className="border-l-4 border-l-muted">
       <CardContent className="p-4">
@@ -179,7 +182,16 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
             </div>
           </div>
 
-          <p className="text-sm leading-relaxed">{review.text}</p>
+          {/* Review text with fallback message */}
+          {hasReviewText ? (
+            <p className="text-sm leading-relaxed">{review.text}</p>
+          ) : (
+            <div className="p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/30">
+              <p className="text-sm text-muted-foreground italic">
+                Review text not available from API source. This review contains rating and metadata information only.
+              </p>
+            </div>
+          )}
 
           <div className="p-3 bg-muted/50 rounded-lg border-l-2 border-l-primary">
             <div className="text-xs font-medium text-muted-foreground mb-1">AI Analysis:</div>
